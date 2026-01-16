@@ -55,7 +55,7 @@ impl ReadStrategy {
                 let result = db_fn().await.map_err(ReadError::Database)?;
                 
                 // Populate cache on success
-                if let (Some(ref value), Some(populate)) = (&result, populate_fn) {
+                if let (Some(value), Some(populate)) = (&result, populate_fn) {
                     if let Err(e) = populate(value.clone()).await {
                         tracing::warn!(error = %e, "Failed to populate cache");
                     }
@@ -77,7 +77,7 @@ impl ReadStrategy {
                 let result = db_fn().await.map_err(ReadError::Database)?;
                 
                 // Populate cache on success
-                if let (Some(ref value), Some(populate)) = (&result, populate_fn) {
+                if let (Some(value), Some(populate)) = (&result, populate_fn) {
                     if let Err(e) = populate(value.clone()).await {
                         tracing::warn!(error = %e, "Failed to populate cache");
                     }
