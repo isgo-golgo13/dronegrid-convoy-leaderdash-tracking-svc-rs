@@ -1,0 +1,79 @@
+# ==============================================================================
+# Dockerfile - GraphQL API Server
+# Multi-stage build for minimal production image
+# ==============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Build
+# -----------------------------------------------------------------------------
+FROM rust:1.83-slim-bookworm AS builder
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy workspace files
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+
+# Remove frontend from workspace for backend-only build
+RUN sed -i '/drone-frontend/d' Cargo.toml
+
+# Build release binary
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/app/target \
+    cargo build --release --package drone-graphql-api && \
+    cp target/release/drone-graphql-api /app/drone-graphql-api
+
+# -----------------------------------------------------------------------------
+# Stage 2: Runtime
+# -----------------------------------------------------------------------------
+FROM debian:bookworm-slim AS runtime
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN useradd -m -u 1000 -s /bin/bash drone
+
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /app/drone-graphql-api /app/drone-graphql-api
+
+# Set ownership
+RUN chown -R drone:drone /app
+
+USER drone
+
+# Build arguments for versioning
+ARG VERSION=unknown
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+
+ENV VERSION=${VERSION}
+ENV GIT_SHA=${GIT_SHA}
+ENV BUILD_TIME=${BUILD_TIME}
+
+# Default environment
+ENV RUST_LOG=info
+ENV SERVER_ADDR=0.0.0.0:8080
+ENV SCYLLA_HOSTS=localhost:9042
+ENV SCYLLA_KEYSPACE=drone_ops
+ENV REDIS_URL=redis://localhost:6379
+ENV ENABLE_PLAYGROUND=true
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+ENTRYPOINT ["/app/drone-graphql-api"]

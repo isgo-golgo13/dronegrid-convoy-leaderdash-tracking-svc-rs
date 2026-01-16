@@ -1,0 +1,159 @@
+# Docker Compose - Full Production Stack
+# Start with: docker compose -f docker/docker-compose.yml up -d
+
+services:
+  # =============================================================================
+  # Frontend - Leptos WASM served by nginx
+  # =============================================================================
+  frontend:
+    image: ghcr.io/enginevector/drone-convoy-tracker-frontend:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    container_name: drone-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    networks:
+      - drone-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # =============================================================================
+  # GraphQL API Server
+  # =============================================================================
+  api:
+    image: ghcr.io/enginevector/drone-convoy-tracker-api:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: drone-api
+    ports:
+      - "8080:8080"
+    environment:
+      - RUST_LOG=info,drone_graphql_api=debug
+      - SERVER_ADDR=0.0.0.0:8080
+      - SCYLLA_HOSTS=scylla:9042
+      - SCYLLA_KEYSPACE=drone_ops
+      - REDIS_URL=redis://redis:6379
+      - ENABLE_PLAYGROUND=true
+    depends_on:
+      scylla:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - drone-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # =============================================================================
+  # ScyllaDB - Primary OLTP Database
+  # =============================================================================
+  scylla:
+    image: scylladb/scylla:5.4
+    container_name: scylla
+    ports:
+      - "9042:9042"
+    volumes:
+      - scylla-data:/var/lib/scylla
+      - ../schema/cql:/docker-entrypoint-initdb.d:ro
+    command: --smp 4 --memory 4G --overprovisioned 1
+    healthcheck:
+      test: ["CMD", "cqlsh", "-e", "SELECT now() FROM system.local"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    networks:
+      - drone-net
+    restart: unless-stopped
+
+  # =============================================================================
+  # Redis - Cache Layer
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: >
+      redis-server
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 60
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - drone-net
+    restart: unless-stopped
+
+  # =============================================================================
+  # Prometheus - Metrics Collection
+  # =============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    networks:
+      - drone-net
+    restart: unless-stopped
+
+  # =============================================================================
+  # Grafana - Dashboards
+  # =============================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - drone-net
+    restart: unless-stopped
+
+volumes:
+  scylla-data:
+    driver: local
+  redis-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  drone-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
