@@ -210,18 +210,16 @@ subscription {
 ## Quick Start (Non-Linux)
 
 
-# 1. Extract and enter
+#### 1. Extract and enter
 cd ~/drone-convoy-tracker
 
-# 2. Build backend crates first (no WASM needed)
+#### 2. Build backend crates first (no WASM needed)
 cargo build --workspace --exclude drone-frontend
 
-# 3. If that succeeds, build frontend (needs wasm target + trunk)
+#### 3. If that succeeds, build frontend (needs wasm target + trunk)
 rustup target add wasm32-unknown-unknown
 cargo install trunk
 cd crates/drone-frontend && trunk build
-
-
 
 
 
