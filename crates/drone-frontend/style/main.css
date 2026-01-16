@@ -238,7 +238,7 @@ body {
 }
 
 .leaflet-container { background: var(--bg-secondary) !important; font-family: var(--font-mono) !important; }
-.leaflet-tile-pane { filter: grayscale(100%) brightness(0.4) contrast(1.2); }
+.leaflet-tile-pane { filter: grayscale(100%) brightness(0.7) contrast(1.2); }
 .leaflet-popup-content-wrapper { background: var(--bg-panel) !important; color: var(--text-primary) !important; border: 1px solid var(--border-primary) !important; border-radius: var(--radius-md) !important; }
 .leaflet-popup-tip { background: var(--bg-panel) !important; }
 
