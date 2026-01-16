@@ -49,6 +49,8 @@ Production-grade military drone convoy tracking system with real-time leaderboar
 
 ![convoy-tracker-dash](docs/drone-convoy-tracker.png)
 
+![convoy-tracker-dash](docs/drone-convoy-tracker-zoom.png)
+
 
 
 
