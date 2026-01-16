@@ -49,7 +49,7 @@ impl ApiContext {
 
         // Create leaderboard repository with cache
         let leaderboard_repo = Arc::new(ScyllaLeaderboardRepository::new(
-            (*scylla).clone(),
+            scylla.clone(),
             Some(cache.clone()),
         ));
 

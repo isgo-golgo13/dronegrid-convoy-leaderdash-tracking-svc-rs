@@ -78,11 +78,9 @@ impl ErrorExtensions for ApiError {
     }
 }
 
-impl From<ApiError> for GraphQLError {
-    fn from(err: ApiError) -> Self {
-        err.extend()
-    }
-}
+// Note: We don't implement From<ApiError> for GraphQLError because async_graphql
+// has a blanket impl for T: Display + Send + Sync + 'static, which ApiError satisfies.
+// Use ApiError's ErrorExtensions::extend() method to get a GraphQL error with extensions.
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {

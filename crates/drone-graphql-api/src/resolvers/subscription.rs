@@ -20,7 +20,7 @@ impl SubscriptionRoot {
     async fn engagement_events(
         &self,
         ctx: &Context<'_>,
-        /// Convoy ID to filter events for
+        #[graphql(desc = "Convoy ID to filter events for")]
         convoy_id: ID,
     ) -> impl Stream<Item = EngagementEvent> {
         let api_ctx = ctx.data::<ApiContext>().unwrap();
@@ -59,7 +59,7 @@ impl SubscriptionRoot {
     async fn leaderboard_updates(
         &self,
         ctx: &Context<'_>,
-        /// Convoy ID to filter updates for
+        #[graphql(desc = "Convoy ID to filter updates for")]
         convoy_id: ID,
     ) -> impl Stream<Item = LeaderboardUpdateEvent> {
         let api_ctx = ctx.data::<ApiContext>().unwrap();
@@ -80,7 +80,7 @@ impl SubscriptionRoot {
     async fn drone_status_changes(
         &self,
         ctx: &Context<'_>,
-        /// Convoy ID to filter events for
+        #[graphql(desc = "Convoy ID to filter events for")]
         convoy_id: ID,
     ) -> impl Stream<Item = DroneStatusEvent> {
         let api_ctx = ctx.data::<ApiContext>().unwrap();
@@ -101,9 +101,9 @@ impl SubscriptionRoot {
     async fn alerts(
         &self,
         ctx: &Context<'_>,
-        /// Convoy ID to filter alerts for
+        #[graphql(desc = "Convoy ID to filter alerts for")]
         convoy_id: ID,
-        /// Minimum severity to receive (default: all)
+        #[graphql(desc = "Minimum severity to receive (default: all)")]
         min_severity: Option<AlertSeverity>,
     ) -> impl Stream<Item = AlertEvent> {
         let api_ctx = ctx.data::<ApiContext>().unwrap();
@@ -140,7 +140,7 @@ impl SubscriptionRoot {
     async fn drone_telemetry(
         &self,
         ctx: &Context<'_>,
-        /// Drone ID to receive telemetry for
+        #[graphql(desc = "Drone ID to receive telemetry for")]
         drone_id: ID,
     ) -> impl Stream<Item = TelemetrySnapshot> {
         let api_ctx = ctx.data::<ApiContext>().unwrap();

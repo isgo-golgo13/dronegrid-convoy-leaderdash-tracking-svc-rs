@@ -23,10 +23,10 @@ pub struct CoordinatesInput {
     pub altitude_m: f64,
     /// Heading in degrees (0-360)
     #[graphql(default)]
-    pub heading_deg: f32,
+    pub heading_deg: f64,
     /// Speed in meters per second
     #[graphql(default)]
-    pub speed_mps: f32,
+    pub speed_mps: f64,
 }
 
 // =============================================================================
@@ -47,7 +47,7 @@ pub struct RecordEngagementInput {
     /// Optional target type
     pub target_type: Option<TargetType>,
     /// Optional range to target in kilometers
-    pub range_km: Option<f32>,
+    pub range_km: Option<f64>,
 }
 
 /// Input for creating a full engagement record
@@ -81,7 +81,7 @@ pub struct TargetInput {
     pub coordinates: CoordinatesInput,
     /// Confidence level (0.0 - 1.0)
     #[graphql(default = 0.9)]
-    pub confidence: f32,
+    pub confidence: f64,
     /// Threat level assessment
     #[graphql(default)]
     pub threat_level: Option<ThreatLevel>,
@@ -116,7 +116,7 @@ pub struct UpdateDroneStateInput {
     /// Current position
     pub position: Option<CoordinatesInput>,
     /// Fuel remaining percentage
-    pub fuel_pct: Option<f32>,
+    pub fuel_pct: Option<f64>,
     /// Current waypoint number
     pub current_waypoint: Option<i32>,
 }
@@ -129,15 +129,15 @@ pub struct CreateTelemetryInput {
     /// Position data
     pub position: CoordinatesInput,
     /// Fuel remaining percentage
-    pub fuel_pct: f32,
+    pub fuel_pct: f64,
     /// Current waypoint number
     pub current_waypoint: i32,
     /// Velocity in m/s
     #[graphql(default)]
-    pub velocity_mps: f32,
+    pub velocity_mps: f64,
     /// Mesh connectivity (0.0 - 1.0)
     #[graphql(default = 1.0)]
-    pub mesh_connectivity: f32,
+    pub mesh_connectivity: f64,
 }
 
 // =============================================================================
@@ -156,7 +156,7 @@ pub struct CreateConvoyInput {
     /// AOR center coordinates
     pub aor_center: CoordinatesInput,
     /// AOR radius in kilometers
-    pub aor_radius_km: f32,
+    pub aor_radius_km: f64,
     /// Commanding unit
     pub commanding_unit: String,
     /// ROE profile name
@@ -254,7 +254,7 @@ impl Default for PaginationInput {
 #[derive(Debug, Clone, InputObject, Default)]
 pub struct LeaderboardFilter {
     /// Minimum accuracy percentage
-    pub min_accuracy: Option<f32>,
+    pub min_accuracy: Option<f64>,
     /// Minimum engagements
     pub min_engagements: Option<i32>,
     /// Filter by platform type
@@ -282,5 +282,5 @@ pub struct DroneFilter {
     /// Filter by platform type
     pub platform_type: Option<PlatformType>,
     /// Minimum fuel percentage
-    pub min_fuel_pct: Option<f32>,
+    pub min_fuel_pct: Option<f64>,
 }

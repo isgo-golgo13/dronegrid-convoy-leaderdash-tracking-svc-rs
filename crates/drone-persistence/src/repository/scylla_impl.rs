@@ -155,25 +155,27 @@ impl ScyllaLeaderboardRepository {
 
         let mut entries = Vec::new();
         
-        // Use single_row or first_row pattern for iteration
-        if let Some(rows) = result.into_rows_result().ok().and_then(|r| r.rows::<(
-            Uuid, Uuid, String, String, i32, i32, f32, i32, i32, i16
-        )>().ok()) {
-            for row_result in rows {
-                if let Ok((cid, did, callsign, platform, total, hits, acc, streak, best, rank)) = row_result {
-                    entries.push(LeaderboardEntry {
-                        convoy_id: cid,
-                        drone_id: did,
-                        callsign,
-                        platform_type: parse_platform_type(&platform),
-                        total_engagements: total,
-                        successful_hits: hits,
-                        accuracy_pct: acc,
-                        current_streak: streak,
-                        best_streak: best,
-                        rank,
-                        updated_at: Utc::now(),
-                    });
+        // Get rows result and iterate
+        if let Ok(rows_result) = result.into_rows_result() {
+            if let Ok(rows) = rows_result.rows::<(
+                Uuid, Uuid, String, String, i32, i32, f32, i32, i32, i16
+            )>() {
+                for row_result in rows {
+                    if let Ok((cid, did, callsign, platform, total, hits, acc, streak, best, rank)) = row_result {
+                        entries.push(LeaderboardEntry {
+                            convoy_id: cid,
+                            drone_id: did,
+                            callsign,
+                            platform_type: parse_platform_type(&platform),
+                            total_engagements: total,
+                            successful_hits: hits,
+                            accuracy_pct: acc,
+                            current_streak: streak,
+                            best_streak: best,
+                            rank,
+                            updated_at: Utc::now(),
+                        });
+                    }
                 }
             }
         }
@@ -278,24 +280,26 @@ impl ScyllaLeaderboardRepository {
             .query_unpaged(query, (convoy_id, drone_id))
             .await?;
 
-        if let Some(rows) = result.into_rows_result().ok().and_then(|r| r.rows::<(
-            Uuid, Uuid, String, String, i32, i32, f32, i32, i32, i16
-        )>().ok()) {
-            for row_result in rows {
-                if let Ok((cid, did, callsign, platform, total, hits, acc, streak, best, rank)) = row_result {
-                    return Ok(Some(LeaderboardEntry {
-                        convoy_id: cid,
-                        drone_id: did,
-                        callsign,
-                        platform_type: parse_platform_type(&platform),
-                        total_engagements: total,
-                        successful_hits: hits,
-                        accuracy_pct: acc,
-                        current_streak: streak,
-                        best_streak: best,
-                        rank,
-                        updated_at: Utc::now(),
-                    }));
+        if let Ok(rows_result) = result.into_rows_result() {
+            if let Ok(rows) = rows_result.rows::<(
+                Uuid, Uuid, String, String, i32, i32, f32, i32, i32, i16
+            )>() {
+                for row_result in rows {
+                    if let Ok((cid, did, callsign, platform, total, hits, acc, streak, best, rank)) = row_result {
+                        return Ok(Some(LeaderboardEntry {
+                            convoy_id: cid,
+                            drone_id: did,
+                            callsign,
+                            platform_type: parse_platform_type(&platform),
+                            total_engagements: total,
+                            successful_hits: hits,
+                            accuracy_pct: acc,
+                            current_streak: streak,
+                            best_streak: best,
+                            rank,
+                            updated_at: Utc::now(),
+                        }));
+                    }
                 }
             }
         }
@@ -324,33 +328,24 @@ impl ScyllaEngagementRepository {
         let query = r#"
             INSERT INTO engagements (
                 convoy_id, engaged_at, engagement_id, drone_id, drone_callsign,
-                weapon_type, weapon_serial, target_id, target_type,
-                authorization_code, authorized_by, roe_compliance,
-                hit, shooter_lat, shooter_lon, shooter_alt, range_to_target_km,
-                bda_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                weapon_type, hit, range_to_target_km, bda_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#;
+
+        // Convert DateTime to milliseconds for CQL timestamp
+        let engaged_at_ms = engagement.engaged_at.timestamp_millis();
 
         self.client.session
             .query_unpaged(
                 query,
                 (
                     engagement.convoy_id,
-                    engagement.engaged_at,
+                    engaged_at_ms,
                     engagement.engagement_id,
                     engagement.drone_id,
                     &engagement.drone_callsign,
                     engagement.weapon_type.as_str(),
-                    &engagement.weapon_serial,
-                    engagement.target.target_id,
-                    target_type_str(&engagement.target.target_type),
-                    &engagement.authorization_code,
-                    &engagement.authorized_by,
-                    engagement.roe_compliance,
                     engagement.hit,
-                    engagement.shooter_position.latitude,
-                    engagement.shooter_position.longitude,
-                    engagement.shooter_position.altitude_m,
                     engagement.range_to_target_km,
                     &engagement.bda_status,
                 ),
@@ -398,13 +393,16 @@ impl ScyllaTelemetryRepository {
             USING TTL 86400
         "#;
 
+        // Convert DateTime to milliseconds for CQL timestamp
+        let recorded_at_ms = telemetry.recorded_at.timestamp_millis();
+
         self.client.session
             .query_unpaged(
                 query,
                 (
                     telemetry.drone_id,
                     &telemetry.time_bucket,
-                    telemetry.recorded_at,
+                    recorded_at_ms,
                     telemetry.position.latitude,
                     telemetry.position.longitude,
                     telemetry.position.altitude_m,
@@ -451,6 +449,11 @@ impl ScyllaConvoyRepository {
 
     /// Create a new convoy.
     pub async fn create(&self, convoy: &Convoy) -> Result<()> {
+        // Convert DateTime to milliseconds for CQL timestamp
+        let created_at_ms = convoy.created_at.timestamp_millis();
+        let mission_start_ms = convoy.mission_start.map(|dt| dt.timestamp_millis());
+        let mission_end_ms = convoy.mission_end.map(|dt| dt.timestamp_millis());
+
         let query = r#"
             INSERT INTO convoys (
                 convoy_id, convoy_callsign, mission_id, mission_type, status,
@@ -470,9 +473,9 @@ impl ScyllaConvoyRepository {
                     convoy.mission_id,
                     mission_type_str(&convoy.mission_type),
                     convoy_status_str(&convoy.status),
-                    convoy.created_at,
-                    convoy.mission_start,
-                    convoy.mission_end,
+                    created_at_ms,
+                    mission_start_ms,
+                    mission_end_ms,
                     &convoy.aor_name,
                     convoy.aor_center.latitude,
                     convoy.aor_center.longitude,

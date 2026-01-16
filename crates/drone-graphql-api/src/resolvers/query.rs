@@ -7,9 +7,8 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use crate::context::ApiContext;
-use crate::error::{ApiError, ApiResult};
+use crate::error::ApiError;
 use crate::schema::*;
-use drone_persistence::LeaderboardRepository;
 
 /// GraphQL Query root
 pub struct QueryRoot;
@@ -28,12 +27,11 @@ impl QueryRoot {
     async fn get_leaderboard(
         &self,
         ctx: &Context<'_>,
-        /// Convoy ID to get leaderboard for
+        #[graphql(desc = "Convoy ID to get leaderboard for")]
         convoy_id: ID,
-        /// Maximum entries to return (default: 10, max: 100)
-        #[graphql(default = 10, validator(maximum = 100))]
+        #[graphql(default = 10, validator(maximum = 100), desc = "Maximum entries to return (default: 10, max: 100)")]
         limit: i32,
-        /// Optional filter criteria
+        #[graphql(desc = "Optional filter criteria")]
         filter: Option<LeaderboardFilter>,
     ) -> Result<Leaderboard> {
         let api_ctx = ctx.data::<ApiContext>()?;
@@ -47,7 +45,7 @@ impl QueryRoot {
 
         let entries = api_ctx
             .leaderboard_repo
-            .get_leaderboard(convoy_uuid, Some(limit))
+            .get_leaderboard(convoy_uuid, limit)
             .await
             .map_err(ApiError::from)?
             .into_iter()
@@ -91,9 +89,9 @@ impl QueryRoot {
     async fn get_drone_rank(
         &self,
         ctx: &Context<'_>,
-        /// Convoy ID
+        #[graphql(desc = "Convoy ID")]
         convoy_id: ID,
-        /// Drone ID
+        #[graphql(desc = "Drone ID")]
         drone_id: ID,
     ) -> Result<Option<LeaderboardEntry>> {
         let api_ctx = ctx.data::<ApiContext>()?;
@@ -102,7 +100,7 @@ impl QueryRoot {
 
         let entries = api_ctx
             .leaderboard_repo
-            .get_leaderboard(convoy_uuid, Some(100))
+            .get_leaderboard(convoy_uuid, 100)
             .await
             .map_err(ApiError::from)?;
 
@@ -150,7 +148,7 @@ impl QueryRoot {
     async fn get_convoy(
         &self,
         _ctx: &Context<'_>,
-        /// Convoy ID
+        #[graphql(desc = "Convoy ID")]
         convoy_id: ID,
     ) -> Result<Option<Convoy>> {
         // TODO: Implement with convoy repository
@@ -181,7 +179,7 @@ impl QueryRoot {
     async fn get_convoy_stats(
         &self,
         ctx: &Context<'_>,
-        /// Convoy ID
+        #[graphql(desc = "Convoy ID")]
         convoy_id: ID,
     ) -> Result<ConvoyStats> {
         let api_ctx = ctx.data::<ApiContext>()?;
@@ -190,7 +188,7 @@ impl QueryRoot {
         // Calculate stats from leaderboard data
         let entries = api_ctx
             .leaderboard_repo
-            .get_leaderboard(convoy_uuid, Some(100))
+            .get_leaderboard(convoy_uuid, 100)
             .await
             .map_err(ApiError::from)?;
 
@@ -223,9 +221,9 @@ impl QueryRoot {
     async fn get_drone(
         &self,
         _ctx: &Context<'_>,
-        /// Convoy ID
+        #[graphql(desc = "Convoy ID")]
         convoy_id: ID,
-        /// Drone ID
+        #[graphql(desc = "Drone ID")]
         drone_id: ID,
     ) -> Result<Option<Drone>> {
         // TODO: Implement with drone repository
@@ -259,12 +257,11 @@ impl QueryRoot {
     async fn get_drones(
         &self,
         _ctx: &Context<'_>,
-        /// Convoy ID
+        #[graphql(desc = "Convoy ID")]
         convoy_id: ID,
-        /// Optional filter
+        #[graphql(desc = "Optional filter")]
         filter: Option<DroneFilter>,
-        /// Pagination
-        #[graphql(default)]
+        #[graphql(default, desc = "Pagination")]
         pagination: PaginationInput,
     ) -> Result<Connection<Drone>> {
         // TODO: Implement with drone repository
@@ -309,7 +306,7 @@ impl QueryRoot {
     async fn get_waypoints(
         &self,
         _ctx: &Context<'_>,
-        /// Drone ID
+        #[graphql(desc = "Drone ID")]
         drone_id: ID,
     ) -> Result<Vec<Waypoint>> {
         // TODO: Implement with waypoint repository
@@ -363,12 +360,11 @@ impl QueryRoot {
     async fn get_engagements(
         &self,
         _ctx: &Context<'_>,
-        /// Convoy ID
+        #[graphql(desc = "Convoy ID")]
         convoy_id: ID,
-        /// Optional filter
+        #[graphql(desc = "Optional filter")]
         filter: Option<EngagementFilter>,
-        /// Pagination
-        #[graphql(default)]
+        #[graphql(default, desc = "Pagination")]
         pagination: PaginationInput,
     ) -> Result<Connection<Engagement>> {
         // TODO: Implement with engagement repository
@@ -385,12 +381,11 @@ impl QueryRoot {
     async fn get_drone_engagements(
         &self,
         _ctx: &Context<'_>,
-        /// Drone ID
+        #[graphql(desc = "Drone ID")]
         drone_id: ID,
-        /// Optional filter
+        #[graphql(desc = "Optional filter")]
         filter: Option<EngagementFilter>,
-        /// Pagination
-        #[graphql(default)]
+        #[graphql(default, desc = "Pagination")]
         pagination: PaginationInput,
     ) -> Result<Connection<Engagement>> {
         // TODO: Implement with engagement repository
@@ -411,7 +406,7 @@ impl QueryRoot {
     async fn get_latest_telemetry(
         &self,
         _ctx: &Context<'_>,
-        /// Drone ID
+        #[graphql(desc = "Drone ID")]
         drone_id: ID,
     ) -> Result<Option<TelemetrySnapshot>> {
         // TODO: Implement with telemetry repository
@@ -438,12 +433,11 @@ impl QueryRoot {
     async fn get_telemetry_history(
         &self,
         _ctx: &Context<'_>,
-        /// Drone ID
+        #[graphql(desc = "Drone ID")]
         drone_id: ID,
-        /// Time range
+        #[graphql(desc = "Time range")]
         time_range: TimeRangeInput,
-        /// Pagination
-        #[graphql(default)]
+        #[graphql(default, desc = "Pagination")]
         pagination: PaginationInput,
     ) -> Result<Connection<TelemetrySnapshot>> {
         // TODO: Implement with telemetry repository
