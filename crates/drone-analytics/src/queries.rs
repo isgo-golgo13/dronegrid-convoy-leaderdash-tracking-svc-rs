@@ -105,7 +105,7 @@ impl AnalyticsEngine {
             "#,
         )?;
 
-        let rows = stmt.query_map([], |row| {
+        let rows = stmt.query_map([], |row: &duckdb::Row| {
             Ok(PlatformComparison {
                 platform_type: row.get(0)?,
                 drone_count: row.get(1)?,
@@ -137,7 +137,7 @@ impl AnalyticsEngine {
             "#,
         )?;
 
-        let rows = stmt.query_map(duckdb::params![start, end], |row| {
+        let rows = stmt.query_map(duckdb::params![start, end], |row: &duckdb::Row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
         })?;
 
@@ -164,7 +164,7 @@ impl AnalyticsEngine {
             "#,
         )?;
 
-        let rows = stmt.query_map([], |row| {
+        let rows = stmt.query_map([], |row: &duckdb::Row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
         })?;
 
@@ -191,7 +191,7 @@ impl AnalyticsEngine {
             "#,
         )?;
 
-        let rows = stmt.query_map([], |row| {
+        let rows = stmt.query_map([], |row: &duckdb::Row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, f64>(1)?))
         })?;
 

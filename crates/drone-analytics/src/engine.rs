@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 /// DuckDB-based analytics engine for historical drone data analysis.
 pub struct AnalyticsEngine {
-    conn: Connection,
+    pub(crate) conn: Connection,
 }
 
 impl AnalyticsEngine {
@@ -159,63 +159,61 @@ impl AnalyticsEngine {
 
     /// Get weapon effectiveness analysis.
     pub fn weapon_effectiveness(&self, convoy_id: Option<Uuid>) -> Result<Vec<WeaponStats>> {
-        let (query, params): (String, Vec<String>) = match convoy_id {
-            Some(id) => (
-                r#"
-                SELECT 
-                    weapon_type,
-                    COUNT(*) as total,
-                    SUM(CASE WHEN hit THEN 1 ELSE 0 END) as hits,
-                    ROUND(100.0 * SUM(CASE WHEN hit THEN 1 ELSE 0 END) / COUNT(*), 2) as accuracy,
-                    ROUND(AVG(range_km), 2) as avg_range
-                FROM engagements
-                WHERE convoy_id = ?
-                GROUP BY weapon_type
-                ORDER BY accuracy DESC
-                "#.to_string(),
-                vec![id.to_string()],
-            ),
-            None => (
-                r#"
-                SELECT 
-                    weapon_type,
-                    COUNT(*) as total,
-                    SUM(CASE WHEN hit THEN 1 ELSE 0 END) as hits,
-                    ROUND(100.0 * SUM(CASE WHEN hit THEN 1 ELSE 0 END) / COUNT(*), 2) as accuracy,
-                    ROUND(AVG(range_km), 2) as avg_range
-                FROM engagements
-                GROUP BY weapon_type
-                ORDER BY accuracy DESC
-                "#.to_string(),
-                vec![],
-            ),
+        let results = match convoy_id {
+            Some(id) => {
+                let mut stmt = self.conn.prepare(
+                    r#"
+                    SELECT 
+                        weapon_type,
+                        COUNT(*) as total,
+                        SUM(CASE WHEN hit THEN 1 ELSE 0 END) as hits,
+                        ROUND(100.0 * SUM(CASE WHEN hit THEN 1 ELSE 0 END) / COUNT(*), 2) as accuracy,
+                        ROUND(AVG(range_km), 2) as avg_range
+                    FROM engagements
+                    WHERE convoy_id = ?
+                    GROUP BY weapon_type
+                    ORDER BY accuracy DESC
+                    "#,
+                )?;
+                let rows = stmt.query_map(params![id.to_string()], |row: &duckdb::Row| {
+                    Ok(WeaponStats {
+                        weapon_type: row.get(0)?,
+                        total_engagements: row.get(1)?,
+                        hits: row.get(2)?,
+                        accuracy_pct: row.get(3)?,
+                        avg_range_km: row.get(4)?,
+                    })
+                })?;
+                rows.collect::<std::result::Result<Vec<_>, _>>()?
+            }
+            None => {
+                let mut stmt = self.conn.prepare(
+                    r#"
+                    SELECT 
+                        weapon_type,
+                        COUNT(*) as total,
+                        SUM(CASE WHEN hit THEN 1 ELSE 0 END) as hits,
+                        ROUND(100.0 * SUM(CASE WHEN hit THEN 1 ELSE 0 END) / COUNT(*), 2) as accuracy,
+                        ROUND(AVG(range_km), 2) as avg_range
+                    FROM engagements
+                    GROUP BY weapon_type
+                    ORDER BY accuracy DESC
+                    "#,
+                )?;
+                let rows = stmt.query_map([], |row: &duckdb::Row| {
+                    Ok(WeaponStats {
+                        weapon_type: row.get(0)?,
+                        total_engagements: row.get(1)?,
+                        hits: row.get(2)?,
+                        accuracy_pct: row.get(3)?,
+                        avg_range_km: row.get(4)?,
+                    })
+                })?;
+                rows.collect::<std::result::Result<Vec<_>, _>>()?
+            }
         };
 
-        let mut stmt = self.conn.prepare(&query)?;
-        let rows = if params.is_empty() {
-            stmt.query_map([], |row| {
-                Ok(WeaponStats {
-                    weapon_type: row.get(0)?,
-                    total_engagements: row.get(1)?,
-                    hits: row.get(2)?,
-                    accuracy_pct: row.get(3)?,
-                    avg_range_km: row.get(4)?,
-                })
-            })?
-        } else {
-            stmt.query_map(params![params[0]], |row| {
-                Ok(WeaponStats {
-                    weapon_type: row.get(0)?,
-                    total_engagements: row.get(1)?,
-                    hits: row.get(2)?,
-                    accuracy_pct: row.get(3)?,
-                    avg_range_km: row.get(4)?,
-                })
-            })?
-        };
-
-        rows.collect::<std::result::Result<Vec<_>, _>>()
-            .map_err(AnalyticsError::from)
+        Ok(results)
     }
 
     /// Get top performers by accuracy.

@@ -12,11 +12,11 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 # Leptos framework
 leptos = { version = "0.7", features = ["csr"] }
-leptos_router = { version = "0.7", features = ["csr"] }
-leptos_meta = { version = "0.7", features = ["csr"] }
+leptos_router = "0.7"
+leptos_meta = "0.7"
 
 # Charming for charts (ECharts wrapper)
-charming = { version = "0.4", features = ["leptos"] }
+charming = { version = "0.4", features = ["wasm"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

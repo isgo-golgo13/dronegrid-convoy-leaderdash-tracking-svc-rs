@@ -1,6 +1,5 @@
 //! Flight path generation for drone simulation.
 
-use chrono::{DateTime, Utc};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
@@ -65,10 +64,11 @@ pub struct FlightPathGenerator {
 impl FlightPathGenerator {
     /// Create a new flight path generator centered on a location.
     pub fn new(center: Coordinates, radius_km: f64) -> Self {
+        let base_altitude = center.altitude_m;
         Self {
             center,
             radius_km,
-            base_altitude: center.altitude_m,
+            base_altitude,
             rng: rand::thread_rng(),
         }
     }
@@ -249,8 +249,8 @@ mod tests {
 
     #[test]
     fn test_generate_mission_path() {
-        let mut gen = FlightPathGenerator::kandahar();
-        let path = gen.generate_mission_path("REAPER-01");
+        let mut generator = FlightPathGenerator::kandahar();
+        let path = generator.generate_mission_path("REAPER-01");
         assert_eq!(path.len(), 25);
         assert!(matches!(path[0].waypoint_type, WaypointType::Takeoff));
         assert!(matches!(path[24].waypoint_type, WaypointType::Landing));
@@ -258,7 +258,7 @@ mod tests {
 
     #[test]
     fn test_interpolate() {
-        let gen = FlightPathGenerator::kandahar();
+        let generator = FlightPathGenerator::kandahar();
         let from = Coordinates::default();
         let to = Coordinates {
             latitude: 32.0,
@@ -268,7 +268,7 @@ mod tests {
             speed_mps: 100.0,
         };
 
-        let mid = gen.interpolate(&from, &to, 0.5);
+        let mid = generator.interpolate(&from, &to, 0.5);
         assert!((mid.latitude - 31.81445).abs() < 0.01);
     }
 }

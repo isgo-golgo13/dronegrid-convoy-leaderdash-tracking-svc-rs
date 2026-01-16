@@ -3,14 +3,13 @@
 //! Redis client wrapper with typed operations for drone convoy caching.
 
 use redis::aio::ConnectionManager;
-use redis::{AsyncCommands, Client, RedisError};
+use redis::{AsyncCommands, Client};
 use serde::{de::DeserializeOwned, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
 
-use crate::error::{PersistenceError, Result};
-use drone_domain::LeaderboardEntry;
+use crate::error::Result;
 
 /// Cache TTL configuration
 #[derive(Debug, Clone, Copy)]
@@ -97,7 +96,7 @@ impl CacheClient {
     pub async fn set_json<T: Serialize>(&self, key: &str, value: &T, ttl: Duration) -> Result<()> {
         let mut conn = self.conn.clone();
         let json = serde_json::to_string(value)?;
-        conn.set_ex(key, json, ttl.as_secs()).await?;
+        let _: () = conn.set_ex(key, json, ttl.as_secs()).await?;
         Ok(())
     }
 
@@ -163,8 +162,8 @@ impl CacheClient {
         let key = format!("convoy:leaderboard:{convoy_id}");
         let mut conn = self.conn.clone();
 
-        conn.zadd(&key, drone_id.to_string(), accuracy_pct).await?;
-        conn.expire(&key, self.config.ttl.leaderboard.as_secs() as i64)
+        let _: () = conn.zadd(&key, drone_id.to_string(), accuracy_pct).await?;
+        let _: () = conn.expire(&key, self.config.ttl.leaderboard.as_secs() as i64)
             .await?;
 
         Ok(())
@@ -218,7 +217,7 @@ impl CacheClient {
         for (field, value) in fields {
             conn.hset::<_, _, _, ()>(&key, *field, value).await?;
         }
-        conn.expire(&key, self.config.ttl.drone_state.as_secs() as i64)
+        let _: () = conn.expire(&key, self.config.ttl.drone_state.as_secs() as i64)
             .await?;
 
         Ok(())
@@ -240,7 +239,7 @@ impl CacheClient {
             conn.hget(&key, "successful_hits").await.unwrap_or(0)
         };
 
-        conn.expire(&key, self.config.ttl.engagement_stats.as_secs() as i64)
+        let _: () = conn.expire(&key, self.config.ttl.engagement_stats.as_secs() as i64)
             .await?;
 
         Ok((total, hits))
@@ -271,7 +270,7 @@ impl CacheClient {
         let mut conn = self.conn.clone();
 
         let added: i64 = conn.sadd(&key, drone_id.to_string()).await?;
-        conn.expire(&key, self.config.ttl.convoy_roster.as_secs() as i64)
+        let _: () = conn.expire(&key, self.config.ttl.convoy_roster.as_secs() as i64)
             .await?;
 
         Ok(added > 0)

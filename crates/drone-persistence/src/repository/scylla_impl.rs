@@ -1,92 +1,53 @@
-//! # ScyllaDB Repository Implementations
-//!
-//! Concrete implementations of repository traits using ScyllaDB.
+//! ScyllaDB repository implementation.
 
-use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use scylla::prepared_statement::PreparedStatement;
-use scylla::transport::session::Session;
-use scylla::{IntoTypedRows, SessionBuilder};
-use std::collections::HashMap;
+use chrono::Utc;
+use scylla::{Session, SessionBuilder, FromRow};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::cache::{CacheClient, SharedCacheClient};
-use crate::error::{PersistenceError, Result};
-use crate::repository::traits::*;
-use crate::strategy::{ReadStrategy, SharedStrategy, WriteStrategy, SharedWriteStrategy};
-use drone_domain::*;
+use crate::cache::SharedCacheClient;
+use crate::error::Result;
+use drone_domain::{
+    Convoy, ConvoyStatus, Engagement, LeaderboardEntry,
+    MissionType, PlatformType, Telemetry, Waypoint, WeaponType,
+};
 
 // =============================================================================
-// SCYLLA CLIENT
+// SCYLLA CONFIGURATION
 // =============================================================================
 
-/// ScyllaDB client configuration
+/// ScyllaDB connection configuration.
 #[derive(Debug, Clone)]
 pub struct ScyllaConfig {
     pub hosts: Vec<String>,
     pub keyspace: String,
     pub username: Option<String>,
     pub password: Option<String>,
-    pub pool_size: usize,
 }
 
 impl Default for ScyllaConfig {
     fn default() -> Self {
         Self {
-            hosts: vec!["127.0.0.1:9042".to_string()],
+            hosts: vec!["localhost:9042".to_string()],
             keyspace: "drone_ops".to_string(),
             username: None,
             password: None,
-            pool_size: 10,
         }
     }
 }
 
-/// ScyllaDB session wrapper
-#[derive(Clone)]
+// =============================================================================
+// SCYLLA CLIENT
+// =============================================================================
+
+/// ScyllaDB client wrapper.
 pub struct ScyllaClient {
     session: Arc<Session>,
-    prepared_stmts: Arc<PreparedStatements>,
-}
-
-/// Pre-prepared statements for performance
-struct PreparedStatements {
-    // Convoy statements
-    get_convoy: PreparedStatement,
-    get_active_convoys: PreparedStatement,
-    insert_convoy: PreparedStatement,
-
-    // Drone statements
-    get_drone: PreparedStatement,
-    get_drones_by_convoy: PreparedStatement,
-    insert_drone: PreparedStatement,
-    update_drone_state: PreparedStatement,
-    update_drone_accuracy: PreparedStatement,
-
-    // Waypoint statements
-    get_waypoints: PreparedStatement,
-    get_waypoint: PreparedStatement,
-    insert_waypoint: PreparedStatement,
-
-    // Telemetry statements
-    get_telemetry_range: PreparedStatement,
-    insert_telemetry: PreparedStatement,
-
-    // Engagement statements
-    get_engagements_by_convoy: PreparedStatement,
-    get_engagements_by_drone: PreparedStatement,
-    insert_engagement: PreparedStatement,
-    insert_engagement_by_drone: PreparedStatement,
-
-    // Leaderboard statements
-    get_leaderboard: PreparedStatement,
-    update_accuracy_counter: PreparedStatement,
-    update_leaderboard_entry: PreparedStatement,
+    pub config: ScyllaConfig,
 }
 
 impl ScyllaClient {
-    /// Create a new ScyllaDB client
+    /// Create a new ScyllaDB client.
     pub async fn new(config: ScyllaConfig) -> Result<Self> {
         let mut builder = SessionBuilder::new()
             .known_nodes(&config.hosts);
@@ -96,372 +57,505 @@ impl ScyllaClient {
         }
 
         let session = builder.build().await?;
-        session.use_keyspace(&config.keyspace, false).await?;
 
-        let prepared_stmts = Self::prepare_statements(&session).await?;
+        // Use keyspace
+        session
+            .query_unpaged(format!("USE {}", config.keyspace), ())
+            .await?;
 
         Ok(Self {
             session: Arc::new(session),
-            prepared_stmts: Arc::new(prepared_stmts),
+            config,
         })
     }
 
-    async fn prepare_statements(session: &Session) -> Result<PreparedStatements> {
-        Ok(PreparedStatements {
-            // Convoy
-            get_convoy: session
-                .prepare("SELECT * FROM convoys WHERE convoy_id = ?")
-                .await?,
-            get_active_convoys: session
-                .prepare("SELECT * FROM active_convoys WHERE status = 'ACTIVE'")
-                .await?,
-            insert_convoy: session
-                .prepare(
-                    "INSERT INTO convoys (convoy_id, convoy_callsign, mission_id, mission_type, \
-                     status, created_at, mission_start, aor_name, commanding_unit, drone_ids, drone_count) \
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                )
-                .await?,
-
-            // Drone
-            get_drone: session
-                .prepare("SELECT * FROM drones WHERE convoy_id = ? AND drone_id = ?")
-                .await?,
-            get_drones_by_convoy: session
-                .prepare("SELECT * FROM drones WHERE convoy_id = ?")
-                .await?,
-            insert_drone: session
-                .prepare(
-                    "INSERT INTO drones (convoy_id, drone_id, tail_number, callsign, platform_type, \
-                     serial_number, status, fuel_remaining_pct, total_engagements, successful_hits, \
-                     accuracy_pct, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                )
-                .await?,
-            update_drone_state: session
-                .prepare(
-                    "UPDATE drones SET status = ?, fuel_remaining_pct = ?, updated_at = ? \
-                     WHERE convoy_id = ? AND drone_id = ?",
-                )
-                .await?,
-            update_drone_accuracy: session
-                .prepare(
-                    "UPDATE drones SET total_engagements = ?, successful_hits = ?, \
-                     accuracy_pct = ?, updated_at = ? WHERE convoy_id = ? AND drone_id = ?",
-                )
-                .await?,
-
-            // Waypoint
-            get_waypoints: session
-                .prepare("SELECT * FROM waypoints WHERE drone_id = ?")
-                .await?,
-            get_waypoint: session
-                .prepare("SELECT * FROM waypoints WHERE drone_id = ? AND sequence_number = ?")
-                .await?,
-            insert_waypoint: session
-                .prepare(
-                    "INSERT INTO waypoints (drone_id, sequence_number, waypoint_id, waypoint_name, \
-                     waypoint_type, planned_arrival, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                )
-                .await?,
-
-            // Telemetry
-            get_telemetry_range: session
-                .prepare(
-                    "SELECT * FROM telemetry WHERE drone_id = ? AND time_bucket = ? \
-                     AND recorded_at >= ? AND recorded_at <= ? LIMIT ?",
-                )
-                .await?,
-            insert_telemetry: session
-                .prepare(
-                    "INSERT INTO telemetry (drone_id, time_bucket, recorded_at, fuel_remaining_pct, \
-                     current_waypoint, velocity_mps, mesh_connectivity) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                )
-                .await?,
-
-            // Engagement
-            get_engagements_by_convoy: session
-                .prepare(
-                    "SELECT * FROM engagements WHERE convoy_id = ? LIMIT ?",
-                )
-                .await?,
-            get_engagements_by_drone: session
-                .prepare(
-                    "SELECT * FROM engagements_by_drone WHERE drone_id = ? LIMIT ?",
-                )
-                .await?,
-            insert_engagement: session
-                .prepare(
-                    "INSERT INTO engagements (convoy_id, engaged_at, engagement_id, drone_id, \
-                     drone_callsign, weapon_type, hit, bda_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                )
-                .await?,
-            insert_engagement_by_drone: session
-                .prepare(
-                    "INSERT INTO engagements_by_drone (drone_id, engaged_at, engagement_id, \
-                     convoy_id, weapon_type, hit) VALUES (?, ?, ?, ?, ?, ?)",
-                )
-                .await?,
-
-            // Leaderboard
-            get_leaderboard: session
-                .prepare(
-                    "SELECT * FROM leaderboard WHERE convoy_id = ? LIMIT ?",
-                )
-                .await?,
-            update_accuracy_counter: session
-                .prepare(
-                    "UPDATE accuracy_counters SET total_engagements = total_engagements + 1, \
-                     successful_hits = successful_hits + ? WHERE convoy_id = ? AND drone_id = ?",
-                )
-                .await?,
-            update_leaderboard_entry: session
-                .prepare(
-                    "INSERT INTO leaderboard (convoy_id, accuracy_pct, drone_id, callsign, \
-                     platform_type, total_engagements, successful_hits, rank, updated_at) \
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                )
-                .await?,
-        })
-    }
-
-    /// Get raw session for advanced queries
-    pub fn session(&self) -> Arc<Session> {
-        self.session.clone()
+    /// Get session reference.
+    pub fn session(&self) -> &Session {
+        &self.session
     }
 }
 
 // =============================================================================
-// CACHED REPOSITORY WRAPPER
+// LEADERBOARD REPOSITORY
 // =============================================================================
 
-/// Repository wrapper that adds caching layer
-pub struct CachedRepository<R> {
-    inner: R,
-    cache: SharedCacheClient,
-    read_strategy: SharedStrategy,
-    write_strategy: SharedWriteStrategy,
-}
-
-impl<R> CachedRepository<R> {
-    pub fn new(
-        inner: R,
-        cache: SharedCacheClient,
-        read_strategy: SharedStrategy,
-        write_strategy: SharedWriteStrategy,
-    ) -> Self {
-        Self {
-            inner,
-            cache,
-            read_strategy,
-            write_strategy,
-        }
-    }
-}
-
-// =============================================================================
-// SCYLLA LEADERBOARD REPOSITORY
-// =============================================================================
-
-/// ScyllaDB implementation of LeaderboardRepository
+/// Repository for leaderboard operations.
 pub struct ScyllaLeaderboardRepository {
-    client: ScyllaClient,
+    client: Arc<ScyllaClient>,
     cache: Option<SharedCacheClient>,
 }
 
 impl ScyllaLeaderboardRepository {
-    pub fn new(client: ScyllaClient, cache: Option<SharedCacheClient>) -> Self {
+    /// Create a new leaderboard repository.
+    pub fn new(client: Arc<ScyllaClient>, cache: Option<SharedCacheClient>) -> Self {
         Self { client, cache }
     }
-}
 
-#[async_trait]
-impl LeaderboardRepository for ScyllaLeaderboardRepository {
-    async fn get_leaderboard(
+    /// Get leaderboard for a convoy.
+    pub async fn get_leaderboard(
         &self,
         convoy_id: Uuid,
-        limit: Option<i32>,
+        limit: i32,
     ) -> Result<Vec<LeaderboardEntry>> {
-        let limit = limit.unwrap_or(10);
-
-        // Try cache first if available
-        if let Some(cache) = &self.cache {
-            if let Ok(cached) = cache.get_leaderboard(convoy_id, limit as usize).await {
-                if !cached.is_empty() {
-                    tracing::debug!(convoy_id = %convoy_id, "Leaderboard cache hit");
-                    // Convert cached data to LeaderboardEntry
-                    // (simplified - in practice would need full data)
-                    let entries: Vec<LeaderboardEntry> = cached
-                        .into_iter()
-                        .enumerate()
-                        .map(|(idx, (drone_id, accuracy))| LeaderboardEntry {
-                            convoy_id,
-                            drone_id,
-                            callsign: String::new(), // Would need to fetch
-                            platform_type: PlatformType::Mq9Reaper,
-                            accuracy_pct: accuracy as f32,
-                            total_engagements: 0,
-                            successful_hits: 0,
-                            current_streak: 0,
-                            best_streak: 0,
-                            rank: (idx + 1) as i16,
-                            updated_at: Utc::now(),
-                        })
-                        .collect();
-                    return Ok(entries);
-                }
+        // Try cache first
+        if let Some(ref cache) = self.cache {
+            if let Ok(Some(entries)) = cache.get_leaderboard(convoy_id).await {
+                return Ok(entries);
             }
         }
 
-        // Query ScyllaDB
-        let result = self
-            .client
-            .session
-            .execute(&self.client.prepared_stmts.get_leaderboard, (convoy_id, limit))
+        // Query from database
+        let query = r#"
+            SELECT convoy_id, drone_id, callsign, platform_type, 
+                   total_engagements, successful_hits, accuracy_pct, rank
+            FROM leaderboard
+            WHERE convoy_id = ?
+            LIMIT ?
+        "#;
+
+        let result = self.client.session
+            .query_unpaged(query, (convoy_id, limit))
             .await?;
 
         let mut entries = Vec::new();
         if let Some(rows) = result.rows {
             for row in rows {
-                // Parse row into LeaderboardEntry
-                // (simplified - actual implementation would parse all columns)
-                let (cid, accuracy, did): (Uuid, f32, Uuid) = row.into_typed()?;
-                entries.push(LeaderboardEntry {
-                    convoy_id: cid,
-                    drone_id: did,
-                    callsign: String::new(),
-                    platform_type: PlatformType::Mq9Reaper,
-                    accuracy_pct: accuracy,
-                    total_engagements: 0,
-                    successful_hits: 0,
-                    current_streak: 0,
-                    best_streak: 0,
-                    rank: (entries.len() + 1) as i16,
-                    updated_at: Utc::now(),
-                });
+                // Parse row manually
+                let cols = row.columns;
+                if cols.len() >= 8 {
+                    let cid: Uuid = cols[0].as_ref()
+                        .and_then(|v| v.as_uuid())
+                        .unwrap_or(convoy_id);
+                    let did: Uuid = cols[1].as_ref()
+                        .and_then(|v| v.as_uuid())
+                        .unwrap_or_default();
+                    let callsign: String = cols[2].as_ref()
+                        .and_then(|v| v.as_text())
+                        .unwrap_or("UNKNOWN")
+                        .to_string();
+                    let platform: String = cols[3].as_ref()
+                        .and_then(|v| v.as_text())
+                        .unwrap_or("MQ9_REAPER")
+                        .to_string();
+                    let total: i32 = cols[4].as_ref()
+                        .and_then(|v| v.as_int())
+                        .unwrap_or(0);
+                    let hits: i32 = cols[5].as_ref()
+                        .and_then(|v| v.as_int())
+                        .unwrap_or(0);
+                    let accuracy: f32 = cols[6].as_ref()
+                        .and_then(|v| v.as_float())
+                        .unwrap_or(0.0);
+                    let rank: i32 = cols[7].as_ref()
+                        .and_then(|v| v.as_int())
+                        .unwrap_or(0);
+                    
+                    entries.push(LeaderboardEntry {
+                        convoy_id: cid,
+                        drone_id: did,
+                        callsign,
+                        platform_type: platform.parse().unwrap_or(PlatformType::Mq9Reaper),
+                        total_engagements: total as u32,
+                        successful_hits: hits as u32,
+                        accuracy_pct: accuracy,
+                        rank: rank as u32,
+                        last_updated: Utc::now(),
+                    });
+                }
             }
         }
 
-        // Populate cache
-        if let Some(cache) = &self.cache {
-            for entry in &entries {
-                let _ = cache
-                    .update_leaderboard_score(convoy_id, entry.drone_id, entry.accuracy_pct as f64)
-                    .await;
-            }
+        // Update cache
+        if let Some(ref cache) = self.cache {
+            let _ = cache.set_leaderboard(convoy_id, &entries).await;
         }
 
         Ok(entries)
     }
 
-    async fn get_rank(&self, convoy_id: Uuid, drone_id: Uuid) -> Result<Option<i16>> {
-        // Try cache first
-        if let Some(cache) = &self.cache {
-            if let Ok(Some(rank)) = cache.get_drone_rank(convoy_id, drone_id).await {
-                return Ok(Some((rank + 1) as i16)); // Convert 0-indexed to 1-indexed
+    /// Update leaderboard entry after engagement.
+    pub async fn update_entry(
+        &self,
+        convoy_id: Uuid,
+        drone_id: Uuid,
+        hit: bool,
+    ) -> Result<LeaderboardEntry> {
+        // Get current stats
+        let query = r#"
+            SELECT total_engagements, successful_hits, callsign, platform_type
+            FROM leaderboard
+            WHERE convoy_id = ? AND drone_id = ?
+        "#;
+
+        let result = self.client.session
+            .query_unpaged(query, (convoy_id, drone_id))
+            .await?;
+
+        let (total, hits, callsign, platform) = if let Some(rows) = result.rows {
+            if let Some(row) = rows.into_iter().next() {
+                let cols = row.columns;
+                let t = cols.get(0).and_then(|c| c.as_ref()).and_then(|v| v.as_int()).unwrap_or(0);
+                let h = cols.get(1).and_then(|c| c.as_ref()).and_then(|v| v.as_int()).unwrap_or(0);
+                let c = cols.get(2).and_then(|c| c.as_ref()).and_then(|v| v.as_text()).unwrap_or("UNKNOWN").to_string();
+                let p = cols.get(3).and_then(|c| c.as_ref()).and_then(|v| v.as_text()).unwrap_or("MQ9_REAPER").to_string();
+                (t, h, c, p)
+            } else {
+                (0, 0, "UNKNOWN".to_string(), "MQ9_REAPER".to_string())
+            }
+        } else {
+            (0, 0, "UNKNOWN".to_string(), "MQ9_REAPER".to_string())
+        };
+
+        let new_total = total + 1;
+        let new_hits = if hit { hits + 1 } else { hits };
+        let new_accuracy = if new_total > 0 {
+            (new_hits as f32 / new_total as f32) * 100.0
+        } else {
+            0.0
+        };
+
+        // Update entry
+        let update = r#"
+            UPDATE leaderboard
+            SET total_engagements = ?, 
+                successful_hits = ?, 
+                accuracy_pct = ?
+            WHERE convoy_id = ? AND drone_id = ?
+        "#;
+
+        self.client.session
+            .query_unpaged(update, (new_total, new_hits, new_accuracy, convoy_id, drone_id))
+            .await?;
+
+        // Invalidate cache
+        if let Some(ref cache) = self.cache {
+            let _ = cache.invalidate_leaderboard(convoy_id).await;
+        }
+
+        Ok(LeaderboardEntry {
+            convoy_id,
+            drone_id,
+            callsign,
+            platform_type: platform.parse().unwrap_or(PlatformType::Mq9Reaper),
+            total_engagements: new_total as u32,
+            successful_hits: new_hits as u32,
+            accuracy_pct: new_accuracy,
+            rank: 0,
+            last_updated: Utc::now(),
+        })
+    }
+}
+
+// =============================================================================
+// ENGAGEMENT REPOSITORY
+// =============================================================================
+
+/// Repository for engagement operations.
+pub struct ScyllaEngagementRepository {
+    client: Arc<ScyllaClient>,
+}
+
+impl ScyllaEngagementRepository {
+    /// Create a new engagement repository.
+    pub fn new(client: Arc<ScyllaClient>) -> Self {
+        Self { client }
+    }
+
+    /// Record a new engagement.
+    pub async fn record(&self, engagement: &Engagement) -> Result<()> {
+        let query = r#"
+            INSERT INTO engagements (
+                convoy_id, drone_id, engagement_id, timestamp,
+                weapon_type, hit, target_type, range_km, altitude_m
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "#;
+
+        self.client.session
+            .query_unpaged(
+                query,
+                (
+                    engagement.convoy_id,
+                    engagement.drone_id,
+                    engagement.engagement_id,
+                    engagement.timestamp,
+                    engagement.weapon_type.to_string(),
+                    engagement.hit,
+                    engagement.target_type.as_ref().map(|t| t.to_string()),
+                    engagement.range_km,
+                    engagement.altitude_m,
+                ),
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Get engagements for a drone.
+    pub async fn get_by_drone(
+        &self,
+        convoy_id: Uuid,
+        drone_id: Uuid,
+        limit: i32,
+    ) -> Result<Vec<Engagement>> {
+        let query = r#"
+            SELECT convoy_id, drone_id, engagement_id, timestamp,
+                   weapon_type, hit, target_type, range_km, altitude_m
+            FROM engagements
+            WHERE convoy_id = ? AND drone_id = ?
+            LIMIT ?
+        "#;
+
+        let result = self.client.session
+            .query_unpaged(query, (convoy_id, drone_id, limit))
+            .await?;
+
+        let mut engagements = Vec::new();
+        if let Some(rows) = result.rows {
+            for row in rows {
+                let cols = row.columns;
+                if cols.len() >= 9 {
+                    let cid = cols[0].as_ref().and_then(|v| v.as_uuid()).unwrap_or(convoy_id);
+                    let did = cols[1].as_ref().and_then(|v| v.as_uuid()).unwrap_or(drone_id);
+                    let eid = cols[2].as_ref().and_then(|v| v.as_uuid()).unwrap_or_default();
+                    let ts = Utc::now(); // Simplified - would parse from column
+                    let weapon = cols[4].as_ref().and_then(|v| v.as_text()).unwrap_or("AGM114_HELLFIRE").to_string();
+                    let hit = cols[5].as_ref().and_then(|v| v.as_boolean()).unwrap_or(false);
+                    let target = cols[6].as_ref().and_then(|v| v.as_text()).map(|s| s.to_string());
+                    let range = cols[7].as_ref().and_then(|v| v.as_double());
+                    let alt = cols[8].as_ref().and_then(|v| v.as_double());
+
+                    engagements.push(Engagement {
+                        convoy_id: cid,
+                        drone_id: did,
+                        engagement_id: eid,
+                        timestamp: ts,
+                        weapon_type: weapon.parse().unwrap_or(WeaponType::Agm114Hellfire),
+                        hit,
+                        target_type: target.and_then(|t| t.parse().ok()),
+                        range_km: range,
+                        altitude_m: alt,
+                    });
+                }
             }
         }
 
-        // Fallback to computing from full leaderboard
-        let leaderboard = self.get_leaderboard(convoy_id, Some(100)).await?;
-        for (idx, entry) in leaderboard.iter().enumerate() {
-            if entry.drone_id == drone_id {
-                return Ok(Some((idx + 1) as i16));
+        Ok(engagements)
+    }
+}
+
+// =============================================================================
+// TELEMETRY REPOSITORY
+// =============================================================================
+
+/// Repository for telemetry operations.
+pub struct ScyllaTelemetryRepository {
+    client: Arc<ScyllaClient>,
+}
+
+impl ScyllaTelemetryRepository {
+    /// Create a new telemetry repository.
+    pub fn new(client: Arc<ScyllaClient>) -> Self {
+        Self { client }
+    }
+
+    /// Record telemetry snapshot.
+    pub async fn record(&self, telemetry: &Telemetry) -> Result<()> {
+        let query = r#"
+            INSERT INTO telemetry (
+                convoy_id, drone_id, timestamp,
+                latitude, longitude, altitude_m,
+                heading_deg, speed_mps, fuel_pct
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            USING TTL 86400
+        "#;
+
+        self.client.session
+            .query_unpaged(
+                query,
+                (
+                    telemetry.convoy_id,
+                    telemetry.drone_id,
+                    telemetry.timestamp,
+                    telemetry.latitude,
+                    telemetry.longitude,
+                    telemetry.altitude_m,
+                    telemetry.heading_deg,
+                    telemetry.speed_mps,
+                    telemetry.fuel_pct,
+                ),
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    /// Get latest telemetry for a drone.
+    pub async fn get_latest(
+        &self,
+        convoy_id: Uuid,
+        drone_id: Uuid,
+    ) -> Result<Option<Telemetry>> {
+        let query = r#"
+            SELECT convoy_id, drone_id, timestamp,
+                   latitude, longitude, altitude_m,
+                   heading_deg, speed_mps, fuel_pct
+            FROM telemetry
+            WHERE convoy_id = ? AND drone_id = ?
+            LIMIT 1
+        "#;
+
+        let result = self.client.session
+            .query_unpaged(query, (convoy_id, drone_id))
+            .await?;
+
+        if let Some(rows) = result.rows {
+            if let Some(row) = rows.into_iter().next() {
+                let cols = row.columns;
+                if cols.len() >= 9 {
+                    return Ok(Some(Telemetry {
+                        convoy_id: cols[0].as_ref().and_then(|v| v.as_uuid()).unwrap_or(convoy_id),
+                        drone_id: cols[1].as_ref().and_then(|v| v.as_uuid()).unwrap_or(drone_id),
+                        timestamp: Utc::now(),
+                        latitude: cols[3].as_ref().and_then(|v| v.as_double()).unwrap_or(0.0),
+                        longitude: cols[4].as_ref().and_then(|v| v.as_double()).unwrap_or(0.0),
+                        altitude_m: cols[5].as_ref().and_then(|v| v.as_double()).unwrap_or(0.0),
+                        heading_deg: cols[6].as_ref().and_then(|v| v.as_float()).unwrap_or(0.0),
+                        speed_mps: cols[7].as_ref().and_then(|v| v.as_float()).unwrap_or(0.0),
+                        fuel_pct: cols[8].as_ref().and_then(|v| v.as_float()).unwrap_or(0.0),
+                    }));
+                }
+            }
+        }
+
+        Ok(None)
+    }
+}
+
+// =============================================================================
+// CONVOY REPOSITORY
+// =============================================================================
+
+/// Repository for convoy operations.
+pub struct ScyllaConvoyRepository {
+    client: Arc<ScyllaClient>,
+}
+
+impl ScyllaConvoyRepository {
+    /// Create a new convoy repository.
+    pub fn new(client: Arc<ScyllaClient>) -> Self {
+        Self { client }
+    }
+
+    /// Get convoy by ID.
+    pub async fn get(&self, convoy_id: Uuid) -> Result<Option<Convoy>> {
+        let query = r#"
+            SELECT convoy_id, callsign, mission_type, status,
+                   created_at, updated_at
+            FROM convoys
+            WHERE convoy_id = ?
+        "#;
+
+        let result = self.client.session
+            .query_unpaged(query, (convoy_id,))
+            .await?;
+
+        if let Some(rows) = result.rows {
+            if let Some(row) = rows.into_iter().next() {
+                let cols = row.columns;
+                if cols.len() >= 6 {
+                    return Ok(Some(Convoy {
+                        convoy_id: cols[0].as_ref().and_then(|v| v.as_uuid()).unwrap_or(convoy_id),
+                        callsign: cols[1].as_ref().and_then(|v| v.as_text()).unwrap_or("UNKNOWN").to_string(),
+                        mission_type: cols[2].as_ref().and_then(|v| v.as_text()).unwrap_or("STRIKE").parse().unwrap_or(MissionType::Strike),
+                        status: cols[3].as_ref().and_then(|v| v.as_text()).unwrap_or("ACTIVE").parse().unwrap_or(ConvoyStatus::Active),
+                        created_at: Utc::now(),
+                        updated_at: Utc::now(),
+                    }));
+                }
             }
         }
 
         Ok(None)
     }
 
-    async fn update_entry(&self, entry: &LeaderboardEntry) -> Result<()> {
-        // Update ScyllaDB
-        self.client
-            .session
-            .execute(
-                &self.client.prepared_stmts.update_leaderboard_entry,
+    /// Create a new convoy.
+    pub async fn create(&self, convoy: &Convoy) -> Result<()> {
+        let query = r#"
+            INSERT INTO convoys (
+                convoy_id, callsign, mission_type, status,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+        "#;
+
+        self.client.session
+            .query_unpaged(
+                query,
                 (
-                    entry.convoy_id,
-                    entry.accuracy_pct,
-                    entry.drone_id,
-                    &entry.callsign,
-                    entry.platform_type.as_str(),
-                    entry.total_engagements,
-                    entry.successful_hits,
-                    entry.rank,
-                    entry.updated_at,
+                    convoy.convoy_id,
+                    &convoy.callsign,
+                    convoy.mission_type.to_string(),
+                    convoy.status.to_string(),
+                    convoy.created_at,
+                    convoy.updated_at,
                 ),
             )
             .await?;
-
-        // Update cache
-        if let Some(cache) = &self.cache {
-            cache
-                .update_leaderboard_score(
-                    entry.convoy_id,
-                    entry.drone_id,
-                    entry.accuracy_pct as f64,
-                )
-                .await?;
-        }
-
-        Ok(())
-    }
-
-    async fn increment_counters(
-        &self,
-        convoy_id: Uuid,
-        drone_id: Uuid,
-        hit: bool,
-    ) -> Result<(i64, i64)> {
-        let hit_increment: i64 = if hit { 1 } else { 0 };
-
-        // Update ScyllaDB counter
-        self.client
-            .session
-            .execute(
-                &self.client.prepared_stmts.update_accuracy_counter,
-                (hit_increment, convoy_id, drone_id),
-            )
-            .await?;
-
-        // Update cache and get new values
-        if let Some(cache) = &self.cache {
-            let (total, hits) = cache.increment_engagements(drone_id, hit).await?;
-            return Ok((total, hits));
-        }
-
-        // If no cache, return placeholder (actual values would need separate query)
-        Ok((1, hit_increment))
-    }
-
-    async fn rebuild(&self, convoy_id: Uuid) -> Result<()> {
-        // Clear existing leaderboard in cache
-        if let Some(cache) = &self.cache {
-            cache.invalidate_convoy(convoy_id).await?;
-        }
-
-        // Query all drones in convoy and rebuild
-        let result = self
-            .client
-            .session
-            .execute(
-                &self.client.prepared_stmts.get_drones_by_convoy,
-                (convoy_id,),
-            )
-            .await?;
-
-        // Re-populate leaderboard
-        // (simplified - would parse and sort all drones)
 
         Ok(())
     }
 }
 
 // =============================================================================
-// SHARED CLIENT TYPE
+// WAYPOINT REPOSITORY  
 // =============================================================================
 
-pub type SharedScyllaClient = Arc<ScyllaClient>;
+/// Repository for waypoint operations.
+pub struct ScyllaWaypointRepository {
+    client: Arc<ScyllaClient>,
+}
 
-pub fn shared_scylla(client: ScyllaClient) -> SharedScyllaClient {
-    Arc::new(client)
+impl ScyllaWaypointRepository {
+    /// Create a new waypoint repository.
+    pub fn new(client: Arc<ScyllaClient>) -> Self {
+        Self { client }
+    }
+
+    /// Get waypoints for a drone.
+    pub async fn get_waypoints(
+        &self,
+        convoy_id: Uuid,
+        drone_id: Uuid,
+    ) -> Result<Vec<Waypoint>> {
+        let query = r#"
+            SELECT convoy_id, drone_id, waypoint_id, sequence,
+                   name, latitude, longitude, altitude_m
+            FROM waypoints
+            WHERE convoy_id = ? AND drone_id = ?
+        "#;
+
+        let result = self.client.session
+            .query_unpaged(query, (convoy_id, drone_id))
+            .await?;
+
+        let mut waypoints = Vec::new();
+        if let Some(rows) = result.rows {
+            for row in rows {
+                let cols = row.columns;
+                if cols.len() >= 8 {
+                    waypoints.push(Waypoint {
+                        convoy_id: cols[0].as_ref().and_then(|v| v.as_uuid()).unwrap_or(convoy_id),
+                        drone_id: cols[1].as_ref().and_then(|v| v.as_uuid()).unwrap_or(drone_id),
+                        waypoint_id: cols[2].as_ref().and_then(|v| v.as_uuid()).unwrap_or_default(),
+                        sequence: cols[3].as_ref().and_then(|v| v.as_int()).unwrap_or(0) as u32,
+                        name: cols[4].as_ref().and_then(|v| v.as_text()).unwrap_or("WP").to_string(),
+                        latitude: cols[5].as_ref().and_then(|v| v.as_double()).unwrap_or(0.0),
+                        longitude: cols[6].as_ref().and_then(|v| v.as_double()).unwrap_or(0.0),
+                        altitude_m: cols[7].as_ref().and_then(|v| v.as_double()).unwrap_or(0.0),
+                    });
+                }
+            }
+        }
+
+        Ok(waypoints)
+    }
 }

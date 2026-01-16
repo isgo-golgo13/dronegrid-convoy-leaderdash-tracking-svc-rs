@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Simulated drone in convoy.
-#[derive(Debug, Clone)]
 pub struct SimulatedDrone {
     pub drone_id: Uuid,
     pub callsign: String,
@@ -193,6 +192,7 @@ impl ConvoySimulator {
                 accuracy_pct: d.accuracy_pct(),
                 total_engagements: d.total_engagements,
                 successful_hits: d.successful_hits,
+                rank: 0, // Will be set after sorting
             })
             .collect();
 
