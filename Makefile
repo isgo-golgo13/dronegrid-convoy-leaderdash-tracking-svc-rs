@@ -77,16 +77,28 @@ help:
 	@echo ""
 	@echo "$(GREEN)Build Targets:$(NC)"
 	@echo "  $(BLUE)all$(NC)              Build everything (backend + frontend)"
+	@echo "  $(BLUE)quick$(NC)            Quick debug build (backend only, no frontend)"
 	@echo "  $(BLUE)build-backend$(NC)    Build all backend crates (release)"
 	@echo "  $(BLUE)build-frontend$(NC)   Build Leptos frontend (WASM)"
 	@echo "  $(BLUE)build-debug$(NC)      Build all crates (debug mode)"
 	@echo "  $(BLUE)build-api$(NC)        Build only GraphQL API server"
+	@echo "  $(BLUE)build-simulator$(NC)  Build only drone simulator"
+	@echo ""
+	@echo "$(GREEN)Run Targets:$(NC)"
+	@echo "  $(BLUE)run-api$(NC)          Run GraphQL API (debug)"
+	@echo "  $(BLUE)run-api-release$(NC)  Run GraphQL API (release)"
+	@echo "  $(BLUE)run-simulator$(NC)    Run drone simulator (debug)"
+	@echo "  $(BLUE)run-simulator-release$(NC) Run drone simulator (release)"
 	@echo ""
 	@echo "$(GREEN)Development:$(NC)"
 	@echo "  $(BLUE)dev$(NC)              Start full development environment"
 	@echo "  $(BLUE)dev-backend$(NC)      Start API in watch mode"
 	@echo "  $(BLUE)dev-frontend$(NC)     Start frontend dev server"
 	@echo "  $(BLUE)dev-db$(NC)           Start development databases"
+	@echo ""
+	@echo "$(GREEN)WASM/Frontend:$(NC)"
+	@echo "  $(BLUE)setup-wasm$(NC)       Install WASM toolchain and trunk"
+	@echo "  $(BLUE)wasm-check$(NC)       Verify WASM environment is ready"
 	@echo ""
 	@echo "$(GREEN)Testing:$(NC)"
 	@echo "  $(BLUE)test$(NC)             Run all tests"
@@ -121,6 +133,31 @@ setup:
 	@cargo install cargo-audit --locked 2>/dev/null || true
 	@echo "$(GREEN)✓ Setup complete!$(NC)"
 
+.PHONY: setup-wasm
+setup-wasm:
+	@echo "$(CYAN)▶ Setting up WASM environment...$(NC)"
+	@rustup target add $(WASM_TARGET)
+	@cargo install trunk --locked 2>/dev/null || echo "trunk already installed"
+	@cargo install wasm-bindgen-cli --locked 2>/dev/null || echo "wasm-bindgen-cli already installed"
+	@echo "$(GREEN)✓ WASM environment ready$(NC)"
+	@echo ""
+	@echo "  WASM target: $(WASM_TARGET)"
+	@echo "  Trunk:       $$(trunk --version 2>/dev/null || echo 'not found')"
+	@echo ""
+
+.PHONY: wasm-check
+wasm-check:
+	@echo "$(CYAN)▶ Checking WASM environment...$(NC)"
+	@rustup target list --installed | grep -q $(WASM_TARGET) && \
+		echo "$(GREEN)✓ WASM target installed$(NC)" || \
+		{ echo "$(RED)✗ WASM target missing - run 'make setup-wasm'$(NC)"; exit 1; }
+	@command -v trunk >/dev/null 2>&1 && \
+		echo "$(GREEN)✓ trunk: $$(trunk --version)$(NC)" || \
+		{ echo "$(RED)✗ trunk not found - run 'make setup-wasm'$(NC)"; exit 1; }
+	@command -v wasm-bindgen >/dev/null 2>&1 && \
+		echo "$(GREEN)✓ wasm-bindgen: $$(wasm-bindgen --version)$(NC)" || \
+		echo "$(YELLOW)⚠ wasm-bindgen not found (optional)$(NC)"
+
 .PHONY: check-deps
 check-deps:
 	@command -v cargo >/dev/null 2>&1 || { echo "$(RED)✗ cargo not found$(NC)"; exit 1; }
@@ -150,10 +187,11 @@ build-backend:
 	@echo "$(GREEN)✓ Backend build complete$(NC)"
 
 .PHONY: build-frontend
-build-frontend: check-deps
+build-frontend: wasm-check
 	@echo "$(CYAN)▶ Building frontend (WASM)...$(NC)"
 	@cd $(FRONTEND_DIR) && $(TRUNK) build --release
 	@echo "$(GREEN)✓ Frontend build complete$(NC)"
+	@echo "  Output: $(FRONTEND_DIR)/dist/"
 
 .PHONY: build-debug
 build-debug:
@@ -166,6 +204,45 @@ build-api:
 	@echo "$(CYAN)▶ Building GraphQL API...$(NC)"
 	@RUSTFLAGS="$(RUSTFLAGS_RELEASE)" $(CARGO) build --release --package drone-graphql-api
 	@echo "$(GREEN)✓ API: $(TARGET_DIR)/release/drone-graphql-api$(NC)"
+
+.PHONY: build-simulator
+build-simulator:
+	@echo "$(CYAN)▶ Building Drone Simulator...$(NC)"
+	@RUSTFLAGS="$(RUSTFLAGS_RELEASE)" $(CARGO) build --release --package drone-simulator
+	@echo "$(GREEN)✓ Simulator: $(TARGET_DIR)/release/drone-simulator$(NC)"
+
+# Quick debug build (excludes frontend - much faster)
+.PHONY: quick
+quick:
+	@echo "$(CYAN)▶ Quick build (backend only, debug)...$(NC)"
+	@$(CARGO) build --workspace --exclude drone-frontend
+	@echo "$(GREEN)✓ Quick build complete$(NC)"
+	@echo "  API:       $(TARGET_DIR)/debug/drone-api"
+	@echo "  Simulator: $(TARGET_DIR)/debug/drone-simulator"
+
+# ------------------------------------------------------------------------------
+# Run
+# ------------------------------------------------------------------------------
+
+.PHONY: run-api
+run-api:
+	@echo "$(CYAN)▶ Starting GraphQL API...$(NC)"
+	@$(CARGO) run --package drone-graphql-api
+
+.PHONY: run-api-release
+run-api-release: build-api
+	@echo "$(CYAN)▶ Starting GraphQL API (release)...$(NC)"
+	@$(TARGET_DIR)/release/drone-api
+
+.PHONY: run-simulator
+run-simulator:
+	@echo "$(CYAN)▶ Starting Drone Simulator...$(NC)"
+	@$(CARGO) run --package drone-simulator
+
+.PHONY: run-simulator-release
+run-simulator-release: build-simulator
+	@echo "$(CYAN)▶ Starting Drone Simulator (release)...$(NC)"
+	@$(TARGET_DIR)/release/drone-simulator
 
 # ------------------------------------------------------------------------------
 # Development
@@ -183,7 +260,7 @@ dev-backend:
 	@cargo watch -x 'run --package drone-graphql-api'
 
 .PHONY: dev-frontend
-dev-frontend:
+dev-frontend: wasm-check
 	@echo "$(CYAN)▶ Starting frontend dev server...$(NC)"
 	@cd $(FRONTEND_DIR) && $(TRUNK) serve --open
 

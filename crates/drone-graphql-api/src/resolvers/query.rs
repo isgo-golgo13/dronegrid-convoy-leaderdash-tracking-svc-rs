@@ -54,7 +54,7 @@ impl QueryRoot {
                 // Apply filters if provided
                 if let Some(ref f) = filter {
                     if let Some(min_acc) = f.min_accuracy {
-                        if e.accuracy_pct < min_acc {
+                        if e.accuracy_pct < min_acc as f32 {
                             return false;
                         }
                     }

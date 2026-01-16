@@ -42,7 +42,6 @@ async fn main() -> anyhow::Result<()> {
         keyspace: config.scylla.keyspace.clone(),
         username: config.scylla.username.clone(),
         password: config.scylla.password.clone(),
-        pool_size: 10,
     };
 
     let scylla = ScyllaClient::new(scylla_config).await?;
