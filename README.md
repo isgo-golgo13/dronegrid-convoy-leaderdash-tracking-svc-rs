@@ -206,6 +206,27 @@ subscription {
 }
 ```
 
+
+## Quick Start (Non-Linux)
+#### 1. Start databases only
+cd docker
+docker compose -f docker-compose.dev.yml up -d
+
+#### 2. Wait ~60-90s for ScyllaDB to be ready, then check:
+docker logs scylla 2>&1 | tail -5
+
+#### 3. Initialize schema
+docker exec -it scylla cqlsh -f /schema/001_core_schema.cql
+
+#### 4. Run API (in project root)
+cargo run --package drone-graphql-api
+
+#### 5. Run frontend (in another terminal)
+cd crates/drone-frontend
+trunk serve --open
+
+
+
 ## Development Roadmap
 
 ### Phase 1 (Current): Data Layer
