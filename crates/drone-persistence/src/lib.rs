@@ -48,6 +48,7 @@
 pub mod cache;
 pub mod error;
 pub mod repository;
+pub mod strategy;
 
 // Re-export commonly used types
 pub use cache::{CacheClient, CacheConfig, SharedCacheClient};
@@ -58,6 +59,7 @@ pub use repository::{
     ScyllaTelemetryRepository, ScyllaConvoyRepository,
     ScyllaWaypointRepository,
 };
+pub use strategy::{ReadStrategy, WriteStrategy};
 
 /// Crate version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -1,279 +1,180 @@
-//! # Write Strategy Pattern
-//!
-//! Pluggable strategies for writing data to the persistence layer.
-//! Implements write-through, write-behind, and write-around patterns.
+//! Write strategy implementations using enum dispatch.
 
-use async_trait::async_trait;
 use std::fmt::Debug;
 use std::future::Future;
-use std::sync::Arc;
 
-use crate::error::Result;
+use super::read_strategy::{CacheError, DbError};
 
-/// Strategy for writing data to persistence layer
-#[async_trait]
-pub trait WriteStrategy: Send + Sync + Debug {
-    /// Execute a write operation with cache and DB functions
-    async fn write<T, CacheFn, CacheFut, DbFn, DbFut>(
+/// Write strategy enum - determines cache/db write pattern.
+#[derive(Debug, Clone, Copy, Default)]
+pub enum WriteStrategy {
+    /// Write to both cache and DB synchronously
+    #[default]
+    WriteThrough,
+    /// Write to DB only, invalidate cache
+    WriteAround,
+    /// Write to cache immediately, async write to DB
+    WriteBack,
+    /// Write to DB only, no cache interaction
+    DbOnly,
+}
+
+impl WriteStrategy {
+    /// Execute a write operation according to the strategy.
+    ///
+    /// - `cache_fn`: Async function to write to cache
+    /// - `db_fn`: Async function to write to database
+    /// - `invalidate_fn`: Optional async function to invalidate cache
+    pub async fn write<T, CacheFut, DbFut, InvalidateFut>(
         &self,
-        cache_key: &str,
         value: &T,
-        cache_fn: CacheFn,
-        db_fn: DbFn,
-    ) -> Result<()>
+        cache_fn: impl FnOnce(&T) -> CacheFut,
+        db_fn: impl FnOnce(&T) -> DbFut,
+        invalidate_fn: Option<impl FnOnce() -> InvalidateFut>,
+    ) -> Result<(), WriteError>
     where
-        T: Send + Sync + 'static,
-        CacheFn: FnOnce() -> CacheFut + Send,
-        CacheFut: Future<Output = Result<()>> + Send,
-        DbFn: FnOnce() -> DbFut + Send,
-        DbFut: Future<Output = Result<()>> + Send;
-
-    /// Strategy name for metrics/logging
-    fn name(&self) -> &'static str;
-}
-
-// =============================================================================
-// STRATEGY IMPLEMENTATIONS
-// =============================================================================
-
-/// Write-Through Strategy
-/// 1. Write to DB first (source of truth)
-/// 2. On success: update cache
-/// 3. On DB failure: do not update cache
-#[derive(Debug, Clone, Copy, Default)]
-pub struct WriteThroughStrategy;
-
-#[async_trait]
-impl WriteStrategy for WriteThroughStrategy {
-    async fn write<T, CacheFn, CacheFut, DbFn, DbFut>(
-        &self,
-        cache_key: &str,
-        _value: &T,
-        cache_fn: CacheFn,
-        db_fn: DbFn,
-    ) -> Result<()>
-    where
-        T: Send + Sync + 'static,
-        CacheFn: FnOnce() -> CacheFut + Send,
-        CacheFut: Future<Output = Result<()>> + Send,
-        DbFn: FnOnce() -> DbFut + Send,
-        DbFut: Future<Output = Result<()>> + Send,
+        T: Debug,
+        CacheFut: Future<Output = Result<(), CacheError>>,
+        DbFut: Future<Output = Result<(), DbError>>,
+        InvalidateFut: Future<Output = Result<(), CacheError>>,
     {
-        tracing::debug!(
-            strategy = "write_through",
-            key = cache_key,
-            "Executing write"
-        );
-
-        // Write to DB first (source of truth)
-        db_fn().await?;
-        tracing::debug!(key = cache_key, "DB write successful");
-
-        // Then update cache (best effort)
-        if let Err(e) = cache_fn().await {
-            tracing::warn!(
-                key = cache_key,
-                error = %e,
-                "Cache write failed (DB write succeeded)"
-            );
-            // Don't fail the operation - DB is authoritative
-        } else {
-            tracing::debug!(key = cache_key, "Cache write successful");
-        }
-
-        Ok(())
-    }
-
-    fn name(&self) -> &'static str {
-        "write_through"
-    }
-}
-
-/// Write-Around Strategy
-/// Only writes to DB, invalidates cache
-/// Good for write-heavy workloads where data isn't immediately re-read
-#[derive(Debug, Clone, Copy, Default)]
-pub struct WriteAroundStrategy;
-
-#[async_trait]
-impl WriteStrategy for WriteAroundStrategy {
-    async fn write<T, CacheFn, CacheFut, DbFn, DbFut>(
-        &self,
-        cache_key: &str,
-        _value: &T,
-        _cache_fn: CacheFn,
-        db_fn: DbFn,
-    ) -> Result<()>
-    where
-        T: Send + Sync + 'static,
-        CacheFn: FnOnce() -> CacheFut + Send,
-        CacheFut: Future<Output = Result<()>> + Send,
-        DbFn: FnOnce() -> DbFut + Send,
-        DbFut: Future<Output = Result<()>> + Send,
-    {
-        tracing::debug!(
-            strategy = "write_around",
-            key = cache_key,
-            "Executing write"
-        );
-
-        // Only write to DB
-        db_fn().await?;
-
-        // Cache invalidation would be handled separately
-        // (not updating, just invalidating)
-        tracing::debug!(
-            key = cache_key,
-            "DB write successful (cache not updated)"
-        );
-
-        Ok(())
-    }
-
-    fn name(&self) -> &'static str {
-        "write_around"
-    }
-}
-
-/// Write-Back (Write-Behind) Strategy
-/// 1. Write to cache immediately
-/// 2. Queue DB write for async processing
-/// WARNING: Risk of data loss if cache fails before DB write
-#[derive(Debug, Clone, Copy, Default)]
-pub struct WriteBackStrategy;
-
-#[async_trait]
-impl WriteStrategy for WriteBackStrategy {
-    async fn write<T, CacheFn, CacheFut, DbFn, DbFut>(
-        &self,
-        cache_key: &str,
-        _value: &T,
-        cache_fn: CacheFn,
-        db_fn: DbFn,
-    ) -> Result<()>
-    where
-        T: Send + Sync + 'static,
-        CacheFn: FnOnce() -> CacheFut + Send,
-        CacheFut: Future<Output = Result<()>> + Send,
-        DbFn: FnOnce() -> DbFut + Send,
-        DbFut: Future<Output = Result<()>> + Send,
-    {
-        tracing::debug!(
-            strategy = "write_back",
-            key = cache_key,
-            "Executing write"
-        );
-
-        // Write to cache first (fast path)
-        cache_fn().await?;
-        tracing::debug!(key = cache_key, "Cache write successful");
-
-        // In a real implementation, this would queue for async write
-        // For now, we do synchronous write but could spawn a task
-        tokio::spawn(async move {
-            if let Err(e) = db_fn().await {
-                tracing::error!(
-                    error = %e,
-                    "Background DB write failed - DATA LOSS RISK"
-                );
+        match self {
+            WriteStrategy::WriteThrough => {
+                // Write to DB first
+                db_fn(value).await.map_err(WriteError::Database)?;
+                
+                // Then write to cache
+                if let Err(e) = cache_fn(value).await {
+                    tracing::warn!(error = %e, "Failed to write to cache");
+                }
+                
+                Ok(())
             }
-        });
 
-        Ok(())
+            WriteStrategy::WriteAround => {
+                // Write to DB only
+                db_fn(value).await.map_err(WriteError::Database)?;
+                
+                // Invalidate cache
+                if let Some(invalidate) = invalidate_fn {
+                    if let Err(e) = invalidate().await {
+                        tracing::warn!(error = %e, "Failed to invalidate cache");
+                    }
+                }
+                
+                Ok(())
+            }
+
+            WriteStrategy::WriteBack => {
+                // Write to cache immediately
+                cache_fn(value).await.map_err(WriteError::Cache)?;
+                
+                // Queue async write to DB (simplified - just write now)
+                // In production, this would use a background task queue
+                if let Err(e) = db_fn(value).await {
+                    tracing::error!(error = %e, "Failed to write to DB (write-back)");
+                    // Don't fail - cache has the data
+                }
+                
+                Ok(())
+            }
+
+            WriteStrategy::DbOnly => {
+                db_fn(value).await.map_err(WriteError::Database)
+            }
+        }
     }
 
-    fn name(&self) -> &'static str {
-        "write_back"
-    }
-}
-
-/// DB-Only Write Strategy
-/// Bypasses cache entirely, writes directly to DB
-#[derive(Debug, Clone, Copy, Default)]
-pub struct DbOnlyWriteStrategy;
-
-#[async_trait]
-impl WriteStrategy for DbOnlyWriteStrategy {
-    async fn write<T, CacheFn, CacheFut, DbFn, DbFut>(
+    /// Simple write without invalidation.
+    pub async fn write_simple<T, CacheFut, DbFut>(
         &self,
-        cache_key: &str,
-        _value: &T,
-        _cache_fn: CacheFn,
-        db_fn: DbFn,
-    ) -> Result<()>
-    where
-        T: Send + Sync + 'static,
-        CacheFn: FnOnce() -> CacheFut + Send,
-        CacheFut: Future<Output = Result<()>> + Send,
-        DbFn: FnOnce() -> DbFut + Send,
-        DbFut: Future<Output = Result<()>> + Send,
-    {
-        tracing::debug!(strategy = "db_only", key = cache_key, "Executing write");
-        db_fn().await
-    }
-
-    fn name(&self) -> &'static str {
-        "db_only_write"
-    }
-}
-
-// =============================================================================
-// DYNAMIC STRATEGY
-// =============================================================================
-
-/// Dynamic strategy selection based on context
-#[derive(Debug, Clone)]
-pub enum DynamicWriteStrategy {
-    WriteThrough(WriteThroughStrategy),
-    WriteAround(WriteAroundStrategy),
-    WriteBack(WriteBackStrategy),
-    DbOnly(DbOnlyWriteStrategy),
-}
-
-impl Default for DynamicWriteStrategy {
-    fn default() -> Self {
-        Self::WriteThrough(WriteThroughStrategy)
-    }
-}
-
-#[async_trait]
-impl WriteStrategy for DynamicWriteStrategy {
-    async fn write<T, CacheFn, CacheFut, DbFn, DbFut>(
-        &self,
-        cache_key: &str,
         value: &T,
-        cache_fn: CacheFn,
-        db_fn: DbFn,
-    ) -> Result<()>
+        cache_fn: impl FnOnce(&T) -> CacheFut,
+        db_fn: impl FnOnce(&T) -> DbFut,
+    ) -> Result<(), WriteError>
     where
-        T: Send + Sync + 'static,
-        CacheFn: FnOnce() -> CacheFut + Send,
-        CacheFut: Future<Output = Result<()>> + Send,
-        DbFn: FnOnce() -> DbFut + Send,
-        DbFut: Future<Output = Result<()>> + Send,
+        T: Debug,
+        CacheFut: Future<Output = Result<(), CacheError>>,
+        DbFut: Future<Output = Result<(), DbError>>,
     {
-        match self {
-            Self::WriteThrough(s) => s.write(cache_key, value, cache_fn, db_fn).await,
-            Self::WriteAround(s) => s.write(cache_key, value, cache_fn, db_fn).await,
-            Self::WriteBack(s) => s.write(cache_key, value, cache_fn, db_fn).await,
-            Self::DbOnly(s) => s.write(cache_key, value, cache_fn, db_fn).await,
-        }
-    }
-
-    fn name(&self) -> &'static str {
-        match self {
-            Self::WriteThrough(s) => s.name(),
-            Self::WriteAround(s) => s.name(),
-            Self::WriteBack(s) => s.name(),
-            Self::DbOnly(s) => s.name(),
-        }
+        self.write::<T, _, _, std::future::Ready<Result<(), CacheError>>>(
+            value,
+            cache_fn,
+            db_fn,
+            None::<fn() -> std::future::Ready<Result<(), CacheError>>>,
+        )
+        .await
     }
 }
 
-/// Arc-wrapped write strategy for sharing across tasks
-pub type SharedWriteStrategy = Arc<dyn WriteStrategy>;
+/// Write operation error.
+#[derive(Debug, thiserror::Error)]
+pub enum WriteError {
+    #[error("Cache error: {0}")]
+    Cache(#[from] CacheError),
+    #[error("Database error: {0}")]
+    Database(#[from] DbError),
+}
 
-/// Create a shared write strategy from a concrete implementation
-pub fn shared<S: WriteStrategy + 'static>(strategy: S) -> SharedWriteStrategy {
-    Arc::new(strategy)
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_write_through() {
+        let strategy = WriteStrategy::WriteThrough;
+        let cache_called = Arc::new(AtomicBool::new(false));
+        let db_called = Arc::new(AtomicBool::new(false));
+        
+        let cache_flag = cache_called.clone();
+        let db_flag = db_called.clone();
+        
+        strategy
+            .write_simple(
+                &42,
+                |_| {
+                    cache_flag.store(true, Ordering::SeqCst);
+                    async { Ok(()) }
+                },
+                |_| {
+                    db_flag.store(true, Ordering::SeqCst);
+                    async { Ok(()) }
+                },
+            )
+            .await
+            .unwrap();
+        
+        assert!(cache_called.load(Ordering::SeqCst));
+        assert!(db_called.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn test_db_only() {
+        let strategy = WriteStrategy::DbOnly;
+        let cache_called = Arc::new(AtomicBool::new(false));
+        let db_called = Arc::new(AtomicBool::new(false));
+        
+        let cache_flag = cache_called.clone();
+        let db_flag = db_called.clone();
+        
+        strategy
+            .write_simple(
+                &42,
+                |_| {
+                    cache_flag.store(true, Ordering::SeqCst);
+                    async { Ok(()) }
+                },
+                |_| {
+                    db_flag.store(true, Ordering::SeqCst);
+                    async { Ok(()) }
+                },
+            )
+            .await
+            .unwrap();
+        
+        assert!(!cache_called.load(Ordering::SeqCst)); // Cache NOT called
+        assert!(db_called.load(Ordering::SeqCst));
+    }
 }

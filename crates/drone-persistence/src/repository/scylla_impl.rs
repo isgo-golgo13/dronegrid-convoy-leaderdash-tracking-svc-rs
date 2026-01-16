@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::cache::SharedCacheClient;
 use crate::error::Result;
+use crate::strategy::{ReadStrategy, WriteStrategy};
 use drone_domain::{
     Convoy, ConvoyStatus, Engagement, LeaderboardEntry,
     MissionType, PlatformType, Telemetry, Waypoint, WeaponType,
@@ -83,12 +84,44 @@ impl ScyllaClient {
 pub struct ScyllaLeaderboardRepository {
     client: Arc<ScyllaClient>,
     cache: Option<SharedCacheClient>,
+    read_strategy: ReadStrategy,
+    write_strategy: WriteStrategy,
 }
 
 impl ScyllaLeaderboardRepository {
-    /// Create a new leaderboard repository.
+    /// Create a new leaderboard repository with default strategies.
     pub fn new(client: Arc<ScyllaClient>, cache: Option<SharedCacheClient>) -> Self {
-        Self { client, cache }
+        Self {
+            client,
+            cache,
+            read_strategy: ReadStrategy::CacheFirst,
+            write_strategy: WriteStrategy::WriteThrough,
+        }
+    }
+
+    /// Create with custom strategies.
+    pub fn with_strategies(
+        client: Arc<ScyllaClient>,
+        cache: Option<SharedCacheClient>,
+        read_strategy: ReadStrategy,
+        write_strategy: WriteStrategy,
+    ) -> Self {
+        Self {
+            client,
+            cache,
+            read_strategy,
+            write_strategy,
+        }
+    }
+
+    /// Set read strategy.
+    pub fn set_read_strategy(&mut self, strategy: ReadStrategy) {
+        self.read_strategy = strategy;
+    }
+
+    /// Set write strategy.
+    pub fn set_write_strategy(&mut self, strategy: WriteStrategy) {
+        self.write_strategy = strategy;
     }
 
     /// Get leaderboard for a convoy.
