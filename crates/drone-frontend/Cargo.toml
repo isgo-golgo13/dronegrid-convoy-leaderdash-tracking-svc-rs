@@ -6,6 +6,10 @@ authors = ["EngineVector <tomas@enginevector.com>"]
 license = "MIT"
 description = "Tactical HUD frontend for drone convoy tracking system"
 
+[[bin]]
+name = "drone-frontend"
+path = "src/main.rs"
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
