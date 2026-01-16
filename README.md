@@ -60,15 +60,15 @@ drone-convoy-tracker/
 │   ├── drone-persistence/        # Repository + Strategy pattern
 │   │   ├── cache/                # Redis client wrapper
 │   │   ├── repository/           # Repository traits + ScyllaDB impl
-│   │   └── strategy/             # Read/Write strategies (cache-first, etc.)
+│   │   └── strategy/             # Read/Write strategies (cache-first, ...)
 │   ├── drone-graphql-api/        # Axum + async-graphql service
 │   │   ├── schema/               # GraphQL types (enums, inputs, objects)
 │   │   ├── resolvers/            # Query, Mutation, Subscription
 │   │   ├── loaders/              # DataLoaders for N+1 prevention
 │   │   └── context.rs            # Application state / DI
-│   ├── drone-frontend/           # Leptos WASM SPA (Step 1)
+│   ├── drone-frontend/           # Leptos WASM SPA
 │   ├── drone-simulator/          # Telemetry + engagement simulation
-│   └── drone-analytics/          # DuckDB OLAP queries (Step 4)
+│   └── drone-analytics/          # DuckDB OLAP queries
 ├── config/                       # Environment configs
 └── docs/                         # Architecture documentation
 ```
