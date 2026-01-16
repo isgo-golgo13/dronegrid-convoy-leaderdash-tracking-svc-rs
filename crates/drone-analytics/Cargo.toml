@@ -1,0 +1,41 @@
+[package]
+name = "drone-analytics"
+version = "0.1.0"
+edition = "2024"
+authors = ["EngineVector <tomas@enginevector.com>"]
+license = "MIT"
+description = "OLAP analytics engine for drone convoy historical analysis using DuckDB"
+
+[dependencies]
+# DuckDB for OLAP
+duckdb = { version = "1.1", features = ["bundled"] }
+
+# Domain types
+drone-domain = { path = "../drone-domain" }
+
+# Async runtime
+tokio = { version = "1.42", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# IDs
+uuid = { version = "1.11", features = ["v4", "serde"] }
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Logging
+tracing = "0.1"
+
+# Statistics
+statrs = "0.18"
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.14"
