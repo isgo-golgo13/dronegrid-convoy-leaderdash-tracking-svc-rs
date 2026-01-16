@@ -11,17 +11,10 @@
 --   4. Materialized views for leaderboard aggregations
 --   5. UDTs for complex nested structures (coordinates, weapon systems)
 -- =============================================================================
-
--- -----------------------------------------------------------------------------
--- KEYSPACE
--- -----------------------------------------------------------------------------
-CREATE KEYSPACE IF NOT EXISTS drone_ops
-WITH replication = {
-    'class': 'NetworkTopologyStrategy',
-    'afghanistan-dc1': 3,
-    'qatar-dc2': 2
-}
-AND durable_writes = true;
+-- NOTE: Keyspace must be created first using:
+--   - 000_keyspace_dev.cql  (local development)
+--   - 000_keyspace_prod.cql (production deployment)
+-- =============================================================================
 
 USE drone_ops;
 
@@ -383,15 +376,15 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS drones_by_status AS
 
 
 -- View: Active convoys (for command dashboard)
+
+-- Note: ScyllaDB MVs only allow one non-PK column from base table
 CREATE MATERIALIZED VIEW IF NOT EXISTS active_convoys AS
     SELECT convoy_id, convoy_callsign, mission_type, status, 
            aor_name, drone_count, mission_start
     FROM convoys
     WHERE convoy_id IS NOT NULL 
       AND status IS NOT NULL
-    PRIMARY KEY (status, mission_start, convoy_id)
-    WITH CLUSTERING ORDER BY (mission_start DESC, convoy_id ASC);
-
+    PRIMARY KEY (status, convoy_id);
 
 -- -----------------------------------------------------------------------------
 -- AUDIT & OPERATIONS

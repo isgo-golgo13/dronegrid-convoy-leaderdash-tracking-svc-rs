@@ -48,7 +48,7 @@ pub fn Footer() -> impl IntoView {
                 }}
 
                 <span class="flex items-center gap-xs">
-                    <span class="status-dot" class=move || connection_status().0></span>
+                    <span class=move || format!("status-dot {}", connection_status().0)></span>
                     <span class="text-sm">{move || connection_status().1}</span>
                 </span>
 

@@ -61,7 +61,7 @@ fn ToastContainer() -> impl IntoView {
                         <div class="toast">
                             <div class="flex justify-between items-center gap-md">
                                 <div class="flex items-center gap-sm">
-                                    <span class="status-dot" class=alert.severity.class()></span>
+                                    <span class=format!("status-dot {}", alert.severity.class())></span>
                                     <span>{alert.message.clone()}</span>
                                 </div>
                                 <button class="btn btn-sm" on:click=on_dismiss>"×"</button>

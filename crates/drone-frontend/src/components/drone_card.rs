@@ -95,12 +95,12 @@ pub fn DroneCard(drone: DroneState) -> impl IntoView {
                 </div>
             </div>
             <div class="drone-metrics">
-                <div class="status-badge" class=drone.status.status_class()>
+                <div class=format!("status-badge {}", drone.status.status_class())>
                     {drone.status.as_str()}
                 </div>
                 <div class="metric">
                     <span class="metric-label">"FUEL"</span>
-                    <span class="metric-value" class=fuel_class>
+                    <span class=format!("metric-value {}", fuel_class)>
                         {format!("{:.0}%", drone.fuel_pct)}
                     </span>
                 </div>

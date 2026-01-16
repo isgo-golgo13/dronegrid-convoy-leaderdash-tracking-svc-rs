@@ -5,7 +5,7 @@
 use leptos::prelude::*;
 use wasm_bindgen::prelude::*;
 
-use crate::state::{use_app_state, Coordinates};
+use crate::state::use_app_state;
 
 /// Leaflet map wrapper
 #[wasm_bindgen]
@@ -51,6 +51,28 @@ extern "C" {
 
     #[wasm_bindgen(method, js_name = addTo)]
     fn polyline_add_to(this: &Polyline, map: &Map);
+    
+    #[wasm_bindgen(js_namespace = L)]
+    type Circle;
+    
+    #[wasm_bindgen(js_namespace = L, js_name = circle)]
+    fn create_circle(lat_lng: &JsValue, options: &JsValue) -> Circle;
+    
+    #[wasm_bindgen(method, js_name = addTo)]
+    fn circle_add_to(this: &Circle, map: &Map);
+}
+
+/// Check if Leaflet is loaded
+fn leaflet_available() -> bool {
+    let window = match web_sys::window() {
+        Some(w) => w,
+        None => return false,
+    };
+    
+    match js_sys::Reflect::get(&window, &JsValue::from_str("L")) {
+        Ok(val) => !val.is_undefined() && !val.is_null(),
+        Err(_) => false,
+    }
 }
 
 /// Afghanistan map panel
@@ -62,54 +84,94 @@ pub fn MapPanel() -> impl IntoView {
     // Center on Kandahar Province, Afghanistan
     let center_lat = 31.6289;
     let center_lng = 65.7372;
+    let aor_radius_m = 150_000.0; // 150km AOR radius
 
-    // Initialize map on mount
+    // Initialize map after a small delay to ensure DOM is ready
     Effect::new(move |_| {
-        // Check if Leaflet is loaded
-        let window = web_sys::window().expect("no window");
-        if window.get("L").is_none() {
-            log::warn!("Leaflet not loaded, map will not render");
-            return;
-        }
+        // Use setTimeout to ensure DOM element exists
+        let closure = Closure::once(Box::new(move || {
+            if !leaflet_available() {
+                log::error!("Leaflet not loaded!");
+                return;
+            }
 
-        // Create map
-        let map = create_map(map_id);
-        let center = js_sys::Array::new();
-        center.push(&JsValue::from_f64(center_lat));
-        center.push(&JsValue::from_f64(center_lng));
-        map.set_view(&center.into(), 7);
+            // Check if map element exists
+            let document = web_sys::window().unwrap().document().unwrap();
+            if document.get_element_by_id(map_id).is_none() {
+                log::error!("Map element not found: {}", map_id);
+                return;
+            }
 
-        // Add dark tile layer
-        let tile_options = js_sys::Object::new();
-        js_sys::Reflect::set(&tile_options, &"maxZoom".into(), &19.into()).unwrap();
-        js_sys::Reflect::set(&tile_options, &"attribution".into(), &"© OpenStreetMap".into()).unwrap();
-        
-        let tiles = tile_layer(
-            "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-            &tile_options.into(),
-        );
-        tiles.add_to(&map);
+            // Create map
+            let map = create_map(map_id);
+            let center = js_sys::Array::new();
+            center.push(&JsValue::from_f64(center_lat));
+            center.push(&JsValue::from_f64(center_lng));
+            map.set_view(&center.into(), 8);
 
-        // Add drone markers
-        let drones = state.drones.get();
-        for drone in drones.values() {
-            let pos = &drone.position;
-            let marker_pos = js_sys::Array::new();
-            marker_pos.push(&JsValue::from_f64(pos.latitude));
-            marker_pos.push(&JsValue::from_f64(pos.longitude));
-
-            let marker_options = js_sys::Object::new();
-            let marker = create_marker(&marker_pos.into(), &marker_options.into());
+            // Add dark tile layer (CartoDB Dark Matter)
+            let tile_options = js_sys::Object::new();
+            js_sys::Reflect::set(&tile_options, &"maxZoom".into(), &19.into()).unwrap();
+            js_sys::Reflect::set(&tile_options, &"attribution".into(), &"© OpenStreetMap © CartoDB".into()).unwrap();
             
-            let popup_content = format!(
-                "<b>{}</b><br/>Alt: {:.0}m<br/>Hdg: {:.0}°<br/>Spd: {:.0} m/s",
-                drone.callsign, pos.altitude_m, pos.heading_deg, pos.speed_mps
+            let tiles = tile_layer(
+                "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+                &tile_options.into(),
             );
-            marker.bind_popup(&popup_content);
-            marker.marker_add_to(&map);
-        }
+            tiles.add_to(&map);
 
-        log::info!("Map initialized with {} drone markers", drones.len());
+            // Add AOR circle (150km radius around Kandahar)
+            let aor_center = js_sys::Array::new();
+            aor_center.push(&JsValue::from_f64(center_lat));
+            aor_center.push(&JsValue::from_f64(center_lng));
+            
+            let aor_options = js_sys::Object::new();
+            js_sys::Reflect::set(&aor_options, &"radius".into(), &JsValue::from_f64(aor_radius_m)).unwrap();
+            js_sys::Reflect::set(&aor_options, &"color".into(), &"#00ff41".into()).unwrap();
+            js_sys::Reflect::set(&aor_options, &"fillColor".into(), &"#00ff41".into()).unwrap();
+            js_sys::Reflect::set(&aor_options, &"fillOpacity".into(), &JsValue::from_f64(0.05)).unwrap();
+            js_sys::Reflect::set(&aor_options, &"weight".into(), &JsValue::from_f64(2.0)).unwrap();
+            js_sys::Reflect::set(&aor_options, &"dashArray".into(), &"5, 10".into()).unwrap();
+            
+            let aor_circle = create_circle(&aor_center.into(), &aor_options.into());
+            aor_circle.circle_add_to(&map);
+
+            // Add drone markers
+            let drones = state.drones.get();
+            for drone in drones.values() {
+                let pos = &drone.position;
+                let marker_pos = js_sys::Array::new();
+                marker_pos.push(&JsValue::from_f64(pos.latitude));
+                marker_pos.push(&JsValue::from_f64(pos.longitude));
+
+                let marker_options = js_sys::Object::new();
+                let marker = create_marker(&marker_pos.into(), &marker_options.into());
+                
+                let popup_content = format!(
+                    "<div style='font-family: monospace; color: #00ff41; background: #0a0f0d; padding: 8px; border: 1px solid #00ff41;'>\
+                    <b style='color: #00ff41;'>{}</b><br/>\
+                    <span style='color: #557755;'>ALT:</span> {:.0}m<br/>\
+                    <span style='color: #557755;'>HDG:</span> {:.0}°<br/>\
+                    <span style='color: #557755;'>SPD:</span> {:.0} m/s<br/>\
+                    <span style='color: #557755;'>FUEL:</span> {:.1}%\
+                    </div>",
+                    drone.callsign, pos.altitude_m, pos.heading_deg, pos.speed_mps, drone.fuel_pct
+                );
+                marker.bind_popup(&popup_content);
+                marker.marker_add_to(&map);
+            }
+
+            log::info!("Map initialized with {} drone markers", drones.len());
+        }) as Box<dyn FnOnce()>);
+
+        let window = web_sys::window().unwrap();
+        window
+            .set_timeout_with_callback_and_timeout_and_arguments_0(
+                closure.as_ref().unchecked_ref(),
+                100,
+            )
+            .unwrap();
+        closure.forget(); // Prevent closure from being dropped
     });
 
     let selected_drone = move || state.selected_drone.get();
@@ -121,7 +183,7 @@ pub fn MapPanel() -> impl IntoView {
 
     view! {
         <div class="map-container">
-            <div id=map_id style="width: 100%; height: 100%; min-height: 400px;"></div>
+            <div id=map_id class="leaflet-map"></div>
 
             <div class="map-overlay">
                 <div class="map-control">
@@ -137,7 +199,7 @@ pub fn MapPanel() -> impl IntoView {
                 })}
             </div>
 
-            <div style="position: absolute; bottom: 16px; right: 16px; z-index: 100;">
+            <div style="position: absolute; bottom: 16px; right: 16px; z-index: 1000;">
                 <div class="map-control" style="font-size: 0.7rem;">
                     <span class="text-muted">"ALT:"</span>
                     {move || drone_position().map(|p| format!("{:.0}m", p.altitude_m)).unwrap_or_else(|| "---".to_string())}

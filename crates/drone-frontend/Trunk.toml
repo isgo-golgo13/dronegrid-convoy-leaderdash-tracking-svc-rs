@@ -19,7 +19,7 @@ filehash = true
 # Paths to watch for changes
 watch = ["src", "style", "assets", "index.html"]
 # Paths to ignore
-ignore = ["target", "dist"]
+ignore = ["dist"]
 
 [serve]
 # Development server address

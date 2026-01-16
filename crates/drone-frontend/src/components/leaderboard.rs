@@ -70,7 +70,7 @@ fn LeaderboardRow(entry: LeaderboardEntry) -> impl IntoView {
     };
 
     view! {
-        <div class="leaderboard-entry" class=rank_class>
+        <div class=format!("leaderboard-entry {}", rank_class)>
             <div class="leaderboard-rank">
                 {entry.rank}
             </div>

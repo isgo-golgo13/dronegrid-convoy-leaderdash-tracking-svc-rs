@@ -3,8 +3,8 @@
 //! Real-time charts using Charming (ECharts wrapper).
 
 use charming::{
-    component::{Axis, Grid, Legend, Title, Tooltip},
-    element::{AreaStyle, AxisType, LineStyle, Trigger},
+    component::{Axis, Grid, Legend, Title},
+    element::{AreaStyle, AxisType, LineStyle, Tooltip, Trigger},
     series::Line,
     Chart, WasmRenderer,
 };
@@ -58,14 +58,14 @@ pub fn TelemetryChartPanel() -> impl IntoView {
                 Axis::new()
                     .type_(AxisType::Category)
                     .data(waypoints.clone())
-                    .axis_line(charming::element::AxisLine::new().line_style(LineStyle::new().color("#557755")))
+                    .axis_line(charming::element::AxisLine::new().line_style((1.0, "#557755")))
                     .axis_label(charming::element::AxisLabel::new().color("#557755")),
             )
             .y_axis(
                 Axis::new()
                     .type_(AxisType::Value)
                     .name("Altitude (m)")
-                    .axis_line(charming::element::AxisLine::new().line_style(LineStyle::new().color("#557755")))
+                    .axis_line(charming::element::AxisLine::new().line_style((1.0, "#557755")))
                     .axis_label(charming::element::AxisLabel::new().color("#557755"))
                     .split_line(charming::element::SplitLine::new().line_style(LineStyle::new().color("#1a2a1a"))),
             )

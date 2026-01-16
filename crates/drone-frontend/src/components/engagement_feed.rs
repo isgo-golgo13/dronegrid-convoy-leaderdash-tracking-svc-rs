@@ -64,7 +64,7 @@ fn EngagementItem(event: EngagementEvent) -> impl IntoView {
     let time_str = event.timestamp.format("%H:%M:%S").to_string();
 
     view! {
-        <div class="engagement-item" class=hit_class>
+        <div class=format!("engagement-item {}", hit_class)>
             <span class="status-dot" class:nominal=event.hit class:critical=!event.hit></span>
             <div class="engagement-info">
                 <div class="engagement-callsign">

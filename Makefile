@@ -96,6 +96,14 @@ help:
 	@printf "  $(BLUE)dev-frontend$(NC)     Start frontend dev server\n"
 	@printf "  $(BLUE)dev-db$(NC)           Start development databases\n"
 	@printf "\n"
+	@printf "$(GREEN)Database:$(NC)\n"
+	@printf "  $(BLUE)db-init$(NC)          Initialize schema (dev mode)\n"
+	@printf "  $(BLUE)db-init-dev$(NC)      Initialize with SimpleStrategy\n"
+	@printf "  $(BLUE)db-init-prod$(NC)     Initialize with NetworkTopologyStrategy\n"
+	@printf "  $(BLUE)db-reset$(NC)         Drop and recreate keyspace\n"
+	@printf "  $(BLUE)db-status$(NC)        Check ScyllaDB connection\n"
+	@printf "  $(BLUE)db-shell$(NC)         Open cqlsh shell\n"
+	@printf "\n"
 	@printf "$(GREEN)WASM/Frontend:$(NC)\n"
 	@printf "  $(BLUE)setup-wasm$(NC)       Install WASM toolchain and trunk\n"
 	@printf "  $(BLUE)wasm-check$(NC)       Verify WASM environment is ready\n"
@@ -282,15 +290,48 @@ dev-stop:
 # ------------------------------------------------------------------------------
 
 .PHONY: db-init
-db-init:
-	@printf "$(CYAN)▶ Initializing ScyllaDB schema...$(NC)\n"
-	@docker exec -i scylla cqlsh < $(SCHEMA_DIR)/cql/001_core_schema.cql 2>/dev/null || \
-		cqlsh $(SCYLLA_HOST) $(SCYLLA_PORT) -f $(SCHEMA_DIR)/cql/001_core_schema.cql
-	@printf "$(GREEN)✓ Schema initialized$(NC)\n"
+db-init: db-init-dev
+
+.PHONY: db-init-dev
+db-init-dev:
+	@printf "$(CYAN)▶ Initializing ScyllaDB schema (development)...$(NC)\n"
+	@docker exec -i scylla cqlsh < $(SCHEMA_DIR)/cql/000_keyspace_dev.cql || \
+		{ printf "$(RED)✗ Failed to create keyspace$(NC)\n"; exit 1; }
+	@docker exec -i scylla cqlsh < $(SCHEMA_DIR)/cql/001_core_schema.cql || \
+		{ printf "$(RED)✗ Failed to create tables$(NC)\n"; exit 1; }
+	@printf "$(GREEN)✓ Dev schema initialized$(NC)\n"
+
+.PHONY: db-init-prod
+db-init-prod:
+	@printf "$(CYAN)▶ Initializing ScyllaDB schema (production)...$(NC)\n"
+	@printf "$(YELLOW)⚠ Using NetworkTopologyStrategy - ensure datacenters exist$(NC)\n"
+	@cqlsh $(SCYLLA_HOST) $(SCYLLA_PORT) -f $(SCHEMA_DIR)/cql/000_keyspace_prod.cql || \
+		{ printf "$(RED)✗ Failed to create keyspace$(NC)\n"; exit 1; }
+	@cqlsh $(SCYLLA_HOST) $(SCYLLA_PORT) -f $(SCHEMA_DIR)/cql/001_core_schema.cql || \
+		{ printf "$(RED)✗ Failed to create tables$(NC)\n"; exit 1; }
+	@printf "$(GREEN)✓ Production schema initialized$(NC)\n"
+
+.PHONY: db-reset
+db-reset:
+	@printf "$(YELLOW)⚠ Dropping and recreating drone_ops keyspace...$(NC)\n"
+	@docker exec -i scylla cqlsh -e "DROP KEYSPACE IF EXISTS drone_ops;" || true
+	@$(MAKE) db-init-dev
+	@printf "$(GREEN)✓ Database reset complete$(NC)\n"
+
+.PHONY: db-status
+db-status:
+	@printf "$(CYAN)▶ Checking ScyllaDB status...$(NC)\n"
+	@docker exec -i scylla cqlsh -e "DESCRIBE KEYSPACES;" && \
+		printf "$(GREEN)✓ ScyllaDB is running$(NC)\n" || \
+		printf "$(RED)✗ ScyllaDB not available$(NC)\n"
 
 .PHONY: db-shell
 db-shell:
 	@docker exec -it scylla cqlsh
+
+.PHONY: db-shell-ops
+db-shell-ops:
+	@docker exec -it scylla cqlsh -k drone_ops
 
 .PHONY: redis-cli
 redis-cli:
