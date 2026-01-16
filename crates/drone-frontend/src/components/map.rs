@@ -115,10 +115,20 @@ pub fn MapPanel() -> impl IntoView {
             js_sys::Reflect::set(&tile_options, &"attribution".into(), &"© OpenStreetMap © CartoDB".into()).unwrap();
             
             let tiles = tile_layer(
-                "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+                "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
                 &tile_options.into(),
             );
             tiles.add_to(&map);
+
+            // Add labels layer on top
+            let label_options = js_sys::Object::new();
+            js_sys::Reflect::set(&label_options, &"maxZoom".into(), &19.into()).unwrap();
+            js_sys::Reflect::set(&label_options, &"pane".into(), &"overlayPane".into()).unwrap();
+            let labels = tile_layer(
+                "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png",
+                &label_options.into(),
+            );
+            labels.add_to(&map);
 
             // Add AOR circle (150km radius around Kandahar)
             let aor_center = js_sys::Array::new();
