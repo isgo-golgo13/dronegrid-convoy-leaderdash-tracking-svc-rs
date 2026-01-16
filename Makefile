@@ -68,55 +68,55 @@ NC := \033[0m
 
 .PHONY: help
 help:
-	@echo ""
-	@echo "$(CYAN)╔══════════════════════════════════════════════════════════════════╗$(NC)"
-	@echo "$(CYAN)║         DRONE CONVOY TRACKER - Build System                      ║$(NC)"
-	@echo "$(CYAN)╚══════════════════════════════════════════════════════════════════╝$(NC)"
-	@echo ""
-	@echo "$(YELLOW)Usage:$(NC) make [target]"
-	@echo ""
-	@echo "$(GREEN)Build Targets:$(NC)"
-	@echo "  $(BLUE)all$(NC)              Build everything (backend + frontend)"
-	@echo "  $(BLUE)quick$(NC)            Quick debug build (backend only, no frontend)"
-	@echo "  $(BLUE)build-backend$(NC)    Build all backend crates (release)"
-	@echo "  $(BLUE)build-frontend$(NC)   Build Leptos frontend (WASM)"
-	@echo "  $(BLUE)build-debug$(NC)      Build all crates (debug mode)"
-	@echo "  $(BLUE)build-api$(NC)        Build only GraphQL API server"
-	@echo "  $(BLUE)build-simulator$(NC)  Build only drone simulator"
-	@echo ""
-	@echo "$(GREEN)Run Targets:$(NC)"
-	@echo "  $(BLUE)run-api$(NC)          Run GraphQL API (debug)"
-	@echo "  $(BLUE)run-api-release$(NC)  Run GraphQL API (release)"
-	@echo "  $(BLUE)run-simulator$(NC)    Run drone simulator (debug)"
-	@echo "  $(BLUE)run-simulator-release$(NC) Run drone simulator (release)"
-	@echo ""
-	@echo "$(GREEN)Development:$(NC)"
-	@echo "  $(BLUE)dev$(NC)              Start full development environment"
-	@echo "  $(BLUE)dev-backend$(NC)      Start API in watch mode"
-	@echo "  $(BLUE)dev-frontend$(NC)     Start frontend dev server"
-	@echo "  $(BLUE)dev-db$(NC)           Start development databases"
-	@echo ""
-	@echo "$(GREEN)WASM/Frontend:$(NC)"
-	@echo "  $(BLUE)setup-wasm$(NC)       Install WASM toolchain and trunk"
-	@echo "  $(BLUE)wasm-check$(NC)       Verify WASM environment is ready"
-	@echo ""
-	@echo "$(GREEN)Testing:$(NC)"
-	@echo "  $(BLUE)test$(NC)             Run all tests"
-	@echo "  $(BLUE)test-unit$(NC)        Run unit tests"
-	@echo "  $(BLUE)lint$(NC)             Run linters (fmt + clippy)"
-	@echo ""
-	@echo "$(GREEN)Production:$(NC)"
-	@echo "  $(BLUE)prod$(NC)             Full production build"
-	@echo "  $(BLUE)docker$(NC)           Build Docker images"
-	@echo "  $(BLUE)package$(NC)          Create distribution package"
-	@echo ""
-	@echo "$(GREEN)Utilities:$(NC)"
-	@echo "  $(BLUE)setup$(NC)            Install development dependencies"
-	@echo "  $(BLUE)clean$(NC)            Clean build artifacts"
-	@echo "  $(BLUE)docs$(NC)             Generate documentation"
-	@echo ""
-	@echo "$(PURPLE)Version: $(VERSION) | SHA: $(GIT_SHA)$(NC)"
-	@echo ""
+	@printf "\n"
+	@printf "$(CYAN)╔══════════════════════════════════════════════════════════════════╗$(NC)\n"
+	@printf "$(CYAN)║         DRONE CONVOY TRACKER - Build System                      ║$(NC)\n"
+	@printf "$(CYAN)╚══════════════════════════════════════════════════════════════════╝$(NC)\n"
+	@printf "\n"
+	@printf "$(YELLOW)Usage:$(NC) make [target]\n"
+	@printf "\n"
+	@printf "$(GREEN)Build Targets:$(NC)\n"
+	@printf "  $(BLUE)all$(NC)              Build everything (backend + frontend)\n"
+	@printf "  $(BLUE)quick$(NC)            Quick debug build (backend only, no frontend)\n"
+	@printf "  $(BLUE)build-backend$(NC)    Build all backend crates (release)\n"
+	@printf "  $(BLUE)build-frontend$(NC)   Build Leptos frontend (WASM)\n"
+	@printf "  $(BLUE)build-debug$(NC)      Build all crates (debug mode)\n"
+	@printf "  $(BLUE)build-api$(NC)        Build only GraphQL API server\n"
+	@printf "  $(BLUE)build-simulator$(NC)  Build only drone simulator\n"
+	@printf "\n"
+	@printf "$(GREEN)Run Targets:$(NC)\n"
+	@printf "  $(BLUE)run-api$(NC)          Run GraphQL API (debug)\n"
+	@printf "  $(BLUE)run-api-release$(NC)  Run GraphQL API (release)\n"
+	@printf "  $(BLUE)run-simulator$(NC)    Run drone simulator (debug)\n"
+	@printf "  $(BLUE)run-simulator-release$(NC) Run drone simulator (release)\n"
+	@printf "\n"
+	@printf "$(GREEN)Development:$(NC)\n"
+	@printf "  $(BLUE)dev$(NC)              Start full development environment\n"
+	@printf "  $(BLUE)dev-backend$(NC)      Start API in watch mode\n"
+	@printf "  $(BLUE)dev-frontend$(NC)     Start frontend dev server\n"
+	@printf "  $(BLUE)dev-db$(NC)           Start development databases\n"
+	@printf "\n"
+	@printf "$(GREEN)WASM/Frontend:$(NC)\n"
+	@printf "  $(BLUE)setup-wasm$(NC)       Install WASM toolchain and trunk\n"
+	@printf "  $(BLUE)wasm-check$(NC)       Verify WASM environment is ready\n"
+	@printf "\n"
+	@printf "$(GREEN)Testing:$(NC)\n"
+	@printf "  $(BLUE)test$(NC)             Run all tests\n"
+	@printf "  $(BLUE)test-unit$(NC)        Run unit tests\n"
+	@printf "  $(BLUE)lint$(NC)             Run linters (fmt + clippy)\n"
+	@printf "\n"
+	@printf "$(GREEN)Production:$(NC)\n"
+	@printf "  $(BLUE)prod$(NC)             Full production build\n"
+	@printf "  $(BLUE)docker$(NC)           Build Docker images\n"
+	@printf "  $(BLUE)package$(NC)          Create distribution package\n"
+	@printf "\n"
+	@printf "$(GREEN)Utilities:$(NC)\n"
+	@printf "  $(BLUE)setup$(NC)            Install development dependencies\n"
+	@printf "  $(BLUE)clean$(NC)            Clean build artifacts\n"
+	@printf "  $(BLUE)docs$(NC)             Generate documentation\n"
+	@printf "\n"
+	@printf "$(PURPLE)Version: $(VERSION) | SHA: $(GIT_SHA)$(NC)\n"
+	@printf "\n"
 
 # ------------------------------------------------------------------------------
 # Setup
@@ -124,22 +124,22 @@ help:
 
 .PHONY: setup
 setup:
-	@echo "$(CYAN)▶ Installing development dependencies...$(NC)"
+	@printf "$(CYAN)▶ Installing development dependencies...$(NC)\n"
 	@rustup show active-toolchain || rustup default stable
 	@rustup target add $(WASM_TARGET)
 	@cargo install trunk --locked 2>/dev/null || true
 	@cargo install wasm-bindgen-cli --locked 2>/dev/null || true
 	@cargo install cargo-watch --locked 2>/dev/null || true
 	@cargo install cargo-audit --locked 2>/dev/null || true
-	@echo "$(GREEN)✓ Setup complete!$(NC)"
+	@printf "$(GREEN)✓ Setup complete!$(NC)\n"
 
 .PHONY: setup-wasm
 setup-wasm:
-	@echo "$(CYAN)▶ Setting up WASM environment...$(NC)"
+	@printf "$(CYAN)▶ Setting up WASM environment...$(NC)\n"
 	@rustup target add $(WASM_TARGET)
 	@cargo install trunk --locked 2>/dev/null || echo "trunk already installed"
 	@cargo install wasm-bindgen-cli --locked 2>/dev/null || echo "wasm-bindgen-cli already installed"
-	@echo "$(GREEN)✓ WASM environment ready$(NC)"
+	@printf "$(GREEN)✓ WASM environment ready$(NC)\n"
 	@echo ""
 	@echo "  WASM target: $(WASM_TARGET)"
 	@echo "  Trunk:       $$(trunk --version 2>/dev/null || echo 'not found')"
@@ -147,7 +147,7 @@ setup-wasm:
 
 .PHONY: wasm-check
 wasm-check:
-	@echo "$(CYAN)▶ Checking WASM environment...$(NC)"
+	@printf "$(CYAN)▶ Checking WASM environment...$(NC)\n"
 	@rustup target list --installed | grep -q $(WASM_TARGET) && \
 		echo "$(GREEN)✓ WASM target installed$(NC)" || \
 		{ echo "$(RED)✗ WASM target missing - run 'make setup-wasm'$(NC)"; exit 1; }
@@ -163,7 +163,7 @@ check-deps:
 	@command -v cargo >/dev/null 2>&1 || { echo "$(RED)✗ cargo not found$(NC)"; exit 1; }
 	@command -v trunk >/dev/null 2>&1 || { echo "$(RED)✗ trunk not found - run 'make setup'$(NC)"; exit 1; }
 	@rustup target list --installed | grep -q $(WASM_TARGET) || { echo "$(RED)✗ WASM target not installed$(NC)"; exit 1; }
-	@echo "$(GREEN)✓ Dependencies OK$(NC)"
+	@printf "$(GREEN)✓ Dependencies OK$(NC)\n"
 
 # ------------------------------------------------------------------------------
 # Build
@@ -171,52 +171,52 @@ check-deps:
 
 .PHONY: all
 all: build-backend build-frontend
-	@echo "$(GREEN)✓ Full build complete!$(NC)"
+	@printf "$(GREEN)✓ Full build complete!$(NC)\n"
 
 .PHONY: build
 build: all
 
 .PHONY: build-backend
 build-backend:
-	@echo "$(CYAN)▶ Building backend crates...$(NC)"
+	@printf "$(CYAN)▶ Building backend crates...$(NC)\n"
 	@RUSTFLAGS="$(RUSTFLAGS_RELEASE)" $(CARGO) build \
 		--release \
 		--jobs $(CARGO_BUILD_JOBS) \
 		--workspace \
 		--exclude drone-frontend
-	@echo "$(GREEN)✓ Backend build complete$(NC)"
+	@printf "$(GREEN)✓ Backend build complete$(NC)\n"
 
 .PHONY: build-frontend
 build-frontend: wasm-check
-	@echo "$(CYAN)▶ Building frontend (WASM)...$(NC)"
+	@printf "$(CYAN)▶ Building frontend (WASM)...$(NC)\n"
 	@cd $(FRONTEND_DIR) && $(TRUNK) build --release
-	@echo "$(GREEN)✓ Frontend build complete$(NC)"
+	@printf "$(GREEN)✓ Frontend build complete$(NC)\n"
 	@echo "  Output: $(FRONTEND_DIR)/dist/"
 
 .PHONY: build-debug
 build-debug:
-	@echo "$(CYAN)▶ Building (debug mode)...$(NC)"
+	@printf "$(CYAN)▶ Building (debug mode)...$(NC)\n"
 	@$(CARGO) build --workspace
-	@echo "$(GREEN)✓ Debug build complete$(NC)"
+	@printf "$(GREEN)✓ Debug build complete$(NC)\n"
 
 .PHONY: build-api
 build-api:
-	@echo "$(CYAN)▶ Building GraphQL API...$(NC)"
+	@printf "$(CYAN)▶ Building GraphQL API...$(NC)\n"
 	@RUSTFLAGS="$(RUSTFLAGS_RELEASE)" $(CARGO) build --release --package drone-graphql-api
-	@echo "$(GREEN)✓ API: $(TARGET_DIR)/release/drone-graphql-api$(NC)"
+	@printf "$(GREEN)✓ API: $(TARGET_DIR)/release/drone-graphql-api$(NC)\n"
 
 .PHONY: build-simulator
 build-simulator:
-	@echo "$(CYAN)▶ Building Drone Simulator...$(NC)"
+	@printf "$(CYAN)▶ Building Drone Simulator...$(NC)\n"
 	@RUSTFLAGS="$(RUSTFLAGS_RELEASE)" $(CARGO) build --release --package drone-simulator
-	@echo "$(GREEN)✓ Simulator: $(TARGET_DIR)/release/drone-simulator$(NC)"
+	@printf "$(GREEN)✓ Simulator: $(TARGET_DIR)/release/drone-simulator$(NC)\n"
 
 # Quick debug build (excludes frontend - much faster)
 .PHONY: quick
 quick:
-	@echo "$(CYAN)▶ Quick build (backend only, debug)...$(NC)"
+	@printf "$(CYAN)▶ Quick build (backend only, debug)...$(NC)\n"
 	@$(CARGO) build --workspace --exclude drone-frontend
-	@echo "$(GREEN)✓ Quick build complete$(NC)"
+	@printf "$(GREEN)✓ Quick build complete$(NC)\n"
 	@echo "  API:       $(TARGET_DIR)/debug/drone-api"
 	@echo "  Simulator: $(TARGET_DIR)/debug/drone-simulator"
 
@@ -226,22 +226,22 @@ quick:
 
 .PHONY: run-api
 run-api:
-	@echo "$(CYAN)▶ Starting GraphQL API...$(NC)"
+	@printf "$(CYAN)▶ Starting GraphQL API...$(NC)\n"
 	@$(CARGO) run --package drone-graphql-api
 
 .PHONY: run-api-release
 run-api-release: build-api
-	@echo "$(CYAN)▶ Starting GraphQL API (release)...$(NC)"
+	@printf "$(CYAN)▶ Starting GraphQL API (release)...$(NC)\n"
 	@$(TARGET_DIR)/release/drone-api
 
 .PHONY: run-simulator
 run-simulator:
-	@echo "$(CYAN)▶ Starting Drone Simulator...$(NC)"
+	@printf "$(CYAN)▶ Starting Drone Simulator...$(NC)\n"
 	@$(CARGO) run --package drone-simulator
 
 .PHONY: run-simulator-release
 run-simulator-release: build-simulator
-	@echo "$(CYAN)▶ Starting Drone Simulator (release)...$(NC)"
+	@printf "$(CYAN)▶ Starting Drone Simulator (release)...$(NC)\n"
 	@$(TARGET_DIR)/release/drone-simulator
 
 # ------------------------------------------------------------------------------
@@ -250,28 +250,28 @@ run-simulator-release: build-simulator
 
 .PHONY: dev
 dev:
-	@echo "$(CYAN)▶ Starting development environment...$(NC)"
-	@echo "$(YELLOW)  Starting API + Frontend in parallel...$(NC)"
+	@printf "$(CYAN)▶ Starting development environment...$(NC)\n"
+	@printf "$(YELLOW)  Starting API + Frontend in parallel...$(NC)\n"
 	@$(MAKE) -j2 dev-backend dev-frontend
 
 .PHONY: dev-backend
 dev-backend:
-	@echo "$(CYAN)▶ Starting API server (watch mode)...$(NC)"
+	@printf "$(CYAN)▶ Starting API server (watch mode)...$(NC)\n"
 	@cargo watch -x 'run --package drone-graphql-api'
 
 .PHONY: dev-frontend
 dev-frontend: wasm-check
-	@echo "$(CYAN)▶ Starting frontend dev server...$(NC)"
+	@printf "$(CYAN)▶ Starting frontend dev server...$(NC)\n"
 	@cd $(FRONTEND_DIR) && $(TRUNK) serve --open
 
 .PHONY: dev-db
 dev-db:
-	@echo "$(CYAN)▶ Starting development databases...$(NC)"
+	@printf "$(CYAN)▶ Starting development databases...$(NC)\n"
 	@docker compose -f docker/docker-compose.dev.yml up -d scylla redis
-	@echo "$(YELLOW)  Waiting for ScyllaDB...$(NC)"
+	@printf "$(YELLOW)  Waiting for ScyllaDB...$(NC)\n"
 	@sleep 15
 	@$(MAKE) db-init
-	@echo "$(GREEN)✓ Databases ready$(NC)"
+	@printf "$(GREEN)✓ Databases ready$(NC)\n"
 
 .PHONY: dev-stop
 dev-stop:
@@ -283,10 +283,10 @@ dev-stop:
 
 .PHONY: db-init
 db-init:
-	@echo "$(CYAN)▶ Initializing ScyllaDB schema...$(NC)"
+	@printf "$(CYAN)▶ Initializing ScyllaDB schema...$(NC)\n"
 	@docker exec -i scylla cqlsh < $(SCHEMA_DIR)/cql/001_core_schema.cql 2>/dev/null || \
 		cqlsh $(SCYLLA_HOST) $(SCYLLA_PORT) -f $(SCHEMA_DIR)/cql/001_core_schema.cql
-	@echo "$(GREEN)✓ Schema initialized$(NC)"
+	@printf "$(GREEN)✓ Schema initialized$(NC)\n"
 
 .PHONY: db-shell
 db-shell:
@@ -302,9 +302,9 @@ redis-cli:
 
 .PHONY: test
 test:
-	@echo "$(CYAN)▶ Running tests...$(NC)"
+	@printf "$(CYAN)▶ Running tests...$(NC)\n"
 	@$(CARGO) test --workspace --all-features
-	@echo "$(GREEN)✓ All tests passed$(NC)"
+	@printf "$(GREEN)✓ All tests passed$(NC)\n"
 
 .PHONY: test-unit
 test-unit:
@@ -331,9 +331,9 @@ fmt-check:
 
 .PHONY: clippy
 clippy:
-	@echo "$(CYAN)▶ Running Clippy...$(NC)"
+	@printf "$(CYAN)▶ Running Clippy...$(NC)\n"
 	@$(CARGO) clippy --workspace --all-features -- -D warnings
-	@echo "$(GREEN)✓ Clippy passed$(NC)"
+	@printf "$(GREEN)✓ Clippy passed$(NC)\n"
 
 .PHONY: audit
 audit:
@@ -346,7 +346,7 @@ audit:
 .PHONY: docs
 docs:
 	@$(CARGO) doc --workspace --no-deps --document-private-items
-	@echo "$(GREEN)✓ Docs: $(TARGET_DIR)/doc/drone_domain/index.html$(NC)"
+	@printf "$(GREEN)✓ Docs: $(TARGET_DIR)/doc/drone_domain/index.html$(NC)\n"
 
 .PHONY: docs-open
 docs-open: docs
@@ -362,26 +362,26 @@ docker: docker-api docker-frontend
 
 .PHONY: docker-api
 docker-api:
-	@echo "$(CYAN)▶ Building API Docker image...$(NC)"
+	@printf "$(CYAN)▶ Building API Docker image...$(NC)\n"
 	@$(DOCKER) build -f docker/Dockerfile.api \
 		-t $(DOCKER_REGISTRY)/$(PROJECT_NAME)-api:$(DOCKER_TAG) \
 		-t $(DOCKER_REGISTRY)/$(PROJECT_NAME)-api:latest \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg GIT_SHA=$(GIT_SHA) .
-	@echo "$(GREEN)✓ API image built$(NC)"
+	@printf "$(GREEN)✓ API image built$(NC)\n"
 
 .PHONY: docker-frontend
 docker-frontend:
-	@echo "$(CYAN)▶ Building frontend Docker image...$(NC)"
+	@printf "$(CYAN)▶ Building frontend Docker image...$(NC)\n"
 	@$(DOCKER) build -f docker/Dockerfile.frontend \
 		-t $(DOCKER_REGISTRY)/$(PROJECT_NAME)-frontend:$(DOCKER_TAG) \
 		-t $(DOCKER_REGISTRY)/$(PROJECT_NAME)-frontend:latest .
-	@echo "$(GREEN)✓ Frontend image built$(NC)"
+	@printf "$(GREEN)✓ Frontend image built$(NC)\n"
 
 .PHONY: docker-up
 docker-up:
 	@docker compose -f docker/docker-compose.yml up -d
-	@echo "$(GREEN)✓ Stack started$(NC)"
+	@printf "$(GREEN)✓ Stack started$(NC)\n"
 	@echo "  Frontend:  http://localhost:3000"
 	@echo "  API:       http://localhost:8080/graphql"
 
@@ -396,9 +396,9 @@ docker-down:
 .PHONY: prod
 prod: clean lint test build-backend build-frontend
 	@echo ""
-	@echo "$(GREEN)╔══════════════════════════════════════════════════════════════════╗$(NC)"
-	@echo "$(GREEN)║              PRODUCTION BUILD COMPLETE                           ║$(NC)"
-	@echo "$(GREEN)╚══════════════════════════════════════════════════════════════════╝$(NC)"
+	@printf "$(GREEN)╔══════════════════════════════════════════════════════════════════╗$(NC)\n"
+	@printf "$(GREEN)║              PRODUCTION BUILD COMPLETE                           ║$(NC)\n"
+	@printf "$(GREEN)╚══════════════════════════════════════════════════════════════════╝$(NC)\n"
 	@echo ""
 	@echo "  API Binary:  $(TARGET_DIR)/release/drone-graphql-api"
 	@echo "  Frontend:    $(FRONTEND_DIR)/dist/"
@@ -407,21 +407,21 @@ prod: clean lint test build-backend build-frontend
 
 .PHONY: package
 package: prod
-	@echo "$(CYAN)▶ Creating distribution package...$(NC)"
+	@printf "$(CYAN)▶ Creating distribution package...$(NC)\n"
 	@mkdir -p $(DIST_DIR)
 	@cp $(TARGET_DIR)/release/drone-graphql-api $(DIST_DIR)/
 	@cp -r $(FRONTEND_DIR)/dist $(DIST_DIR)/frontend
 	@cp -r $(SCHEMA_DIR) $(DIST_DIR)/
 	@cp README.md $(DIST_DIR)/
 	@cd $(DIST_DIR) && tar -czf $(PROJECT_NAME)-$(VERSION).tar.gz *
-	@echo "$(GREEN)✓ Package: $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION).tar.gz$(NC)"
+	@printf "$(GREEN)✓ Package: $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION).tar.gz$(NC)\n"
 
 .PHONY: zip
 zip:
 	@mkdir -p $(DIST_DIR)
 	@zip -r $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION).zip . \
 		-x "target/*" -x ".git/*" -x "dist/*" -x "*.zip"
-	@echo "$(GREEN)✓ Archive: $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION).zip$(NC)"
+	@printf "$(GREEN)✓ Archive: $(DIST_DIR)/$(PROJECT_NAME)-$(VERSION).zip$(NC)\n"
 
 # ------------------------------------------------------------------------------
 # Cleanup
@@ -429,11 +429,11 @@ zip:
 
 .PHONY: clean
 clean:
-	@echo "$(CYAN)▶ Cleaning...$(NC)"
+	@printf "$(CYAN)▶ Cleaning...$(NC)\n"
 	@$(CARGO) clean
 	@rm -rf $(FRONTEND_DIR)/dist
 	@rm -rf $(DIST_DIR)
-	@echo "$(GREEN)✓ Clean$(NC)"
+	@printf "$(GREEN)✓ Clean$(NC)\n"
 
 # ------------------------------------------------------------------------------
 # Utilities
@@ -462,8 +462,8 @@ version:
 
 .PHONY: ci
 ci: check-deps lint test build
-	@echo "$(GREEN)✓ CI pipeline complete$(NC)"
+	@printf "$(GREEN)✓ CI pipeline complete$(NC)\n"
 
 .PHONY: ci-full
 ci-full: ci audit docker
-	@echo "$(GREEN)✓ Full CI pipeline complete$(NC)"
+	@printf "$(GREEN)✓ Full CI pipeline complete$(NC)\n"
