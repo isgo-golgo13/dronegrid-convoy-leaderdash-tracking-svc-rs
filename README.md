@@ -210,37 +210,54 @@ subscription {
 ## Quick Start (Non-Linux)
 
 
-#### 1. Extract and enter
+1. Extract and enter
+```shell
 cd ~/drone-convoy-tracker
-
-#### 2. Build backend crates first (no WASM needed)
+```
+2. Build backend crates first (no WASM needed)
+```shell
 cargo build --workspace --exclude drone-frontend
+```
 
-#### 3. If that succeeds, build frontend (needs wasm target + trunk)
+3. If that succeeds, build frontend (needs wasm target + trunk)
+```shell
 rustup target add wasm32-unknown-unknown
 cargo install trunk
 cd crates/drone-frontend && trunk build
+```
 
 
 
 
 
-#### 1. Start databases only
+
+1. Start databases only
+```shell
 cd docker
 docker compose -f docker-compose.dev.yml up -d
+```
 
-#### 2. Wait ~60-90s for ScyllaDB to be ready, then check:
+2. Wait ~60-90s for ScyllaDB to be ready, then check:
+```shell
 docker logs scylla 2>&1 | tail -5
+```
 
-#### 3. Initialize schema
+3. Initialize schema
+```shell
 docker exec -it scylla cqlsh -f /schema/001_core_schema.cql
+```
 
-#### 4. Run API (in project root)
+4. Run API (in project root)
+```shell
 cargo run --package drone-graphql-api
+```
 
-#### 5. Run frontend (in another terminal)
+5. Run frontend (in another terminal)
+```shell
 cd crates/drone-frontend
 trunk serve --open
+```
+
 
 
 
