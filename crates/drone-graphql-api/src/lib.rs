@@ -43,6 +43,7 @@
 pub mod config;
 pub mod context;
 pub mod error;
+pub mod loaders;
 pub mod resolvers;
 pub mod schema;
 
