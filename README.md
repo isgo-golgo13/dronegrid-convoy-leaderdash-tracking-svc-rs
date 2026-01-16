@@ -45,6 +45,13 @@ Production-grade military drone convoy tracking system with real-time leaderboar
                                           └─────────────────────────────────────┘
 ```
 
+## Convoy Tracking (Rust) Leptos Dash UI
+
+![convoy-tracker-dash](docs/drone-convoy-tracker.png)
+
+
+
+
 ## Project Structure
 
 ```
