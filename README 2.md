@@ -217,4 +217,3 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 **Classification: UNCLASSIFIED // FOR OFFICIAL USE ONLY**
 
-*Built with ❤️ by EngineVector*
